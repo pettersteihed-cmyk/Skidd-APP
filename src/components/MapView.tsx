@@ -10,11 +10,12 @@ interface MapViewProps {
   onSelect: (resort: Resort) => void;
   flyTarget: { lat: number; lng: number; zoom?: number; nonce: number } | null;
   showSnowMap: boolean;
+  resizeTrigger: number;
 }
 
 const CENTER: [number, number] = [6.5, 45.4];
 
-export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap }: MapViewProps) {
+export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
@@ -117,6 +118,21 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       el.classList.toggle('is-active', isActive);
     });
   }, [resorts, activeId]);
+
+  // Kör map.resize() på varje frame i 300 ms så kartan växer i takt med panelanimationen
+  useEffect(() => {
+    if (resizeTrigger === 0) return;
+    const map = mapRef.current;
+    if (!map) return;
+    const start = performance.now();
+    let rafId: number;
+    const tick = (now: number) => {
+      map.resize();
+      if (now - start < 300) rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [resizeTrigger]);
 
   // Slå av/på OpenSnowMap-lagret
   useEffect(() => {
