@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import MapView from '@/components/MapView';
 import Sidebar from '@/components/Sidebar';
@@ -108,11 +108,14 @@ export default function App() {
         />
       </main>
 
-      {/* Ruttvyer — ovanpå kartan */}
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/karta" element={null} />
-      </Routes>
+      {/* Landing-overlay — alltid monterad, opacity styrs av isLanding för smidig fade */}
+      <div
+        className={`fixed inset-0 z-[1500] transition-opacity duration-500 ${
+          isLanding ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <LandingPage />
+      </div>
 
       <ResortModal resort={activeResort} onClose={() => setActiveResort(null)} />
     </div>

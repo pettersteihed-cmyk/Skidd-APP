@@ -1,22 +1,11 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Snowflake, Map, Mountain, Train } from 'lucide-react';
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [leaving, setLeaving] = useState(false);
-
-  const handleEnter = () => {
-    setLeaving(true);
-    setTimeout(() => navigate('/karta'), 420);
-  };
 
   return (
-    <div
-      className={`fixed inset-0 z-[1500] flex flex-col items-center justify-center transition-opacity duration-400 ${
-        leaving ? 'opacity-0 pointer-events-none' : 'opacity-100'
-      }`}
-    >
+    <div className="flex h-full w-full flex-col items-center justify-center">
       {/* Vinjett — kartan skiner igenom i mitten */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-slate-900/75 via-slate-900/25 to-slate-900/75" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-900/50 via-transparent to-slate-900/50" />
@@ -58,7 +47,7 @@ export default function LandingPage() {
 
         {/* CTA-knapp */}
         <button
-          onClick={handleEnter}
+          onClick={() => navigate('/karta')}
           className="group flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-slate-900 shadow-2xl transition hover:bg-slate-50 hover:scale-105 active:scale-100"
         >
           <Map className="h-4 w-4 transition group-hover:translate-x-0.5" />

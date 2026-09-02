@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MAPBOX_TOKEN } from '@/data/resorts';
@@ -15,16 +15,23 @@ interface MapViewProps {
 }
 
 const CENTER: [number, number] = [6.5, 45.4];
-const ZOOM_LANDING = 5.2;
+const ZOOM_LANDING = 6.8;
 const ZOOM_MAP = 7.5;
+
+// Regex för lager som ska döljas på startsidan (etiketter + vägar + gränser)
+const HIDE_LINE_PATTERN = /road|tunnel|bridge|ferry|admin|country|border|boundary/;
 
 export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
+  const hiddenLayersRef = useRef<string[]>([]);
   const onSelectRef = useRef(onSelect);
+  const isLandingRef = useRef(isLanding);
   onSelectRef.current = onSelect;
+  isLandingRef.current = isLanding;
 
+  // Karta-initialisering
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     let map: mapboxgl.Map;
@@ -34,7 +41,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         container: containerRef.current,
         style: 'mapbox://styles/mapbox/outdoors-v12',
         center: CENTER,
-        zoom: 7.5,
+        zoom: isLandingRef.current ? ZOOM_LANDING : ZOOM_MAP,
         attributionControl: true,
       });
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'bottom-right');
@@ -71,6 +78,10 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
             ],
           },
         });
+        // Dölj etiketter/vägar direkt om startsidan är aktiv vid laddning
+        if (isLandingRef.current) {
+          applyLayerVisibility(map, true, hiddenLayersRef);
+        }
       });
       mapRef.current = map;
     } catch (err) {
@@ -84,13 +95,12 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     };
   }, []);
 
-  // Manage markers: create / update / fade filtered-out
+  // Markörer: skapa/uppdatera/ta bort, och dölj på startsidan
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const present = new Set(resorts.map((r) => r.name));
-    // remove markers no longer present
     Object.keys(markersRef.current).forEach((name) => {
       if (!present.has(name)) {
         markersRef.current[name].remove();
@@ -119,10 +129,13 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       }
       const el = marker.getElement();
       el.classList.toggle('is-active', isActive);
+      // Dölj markörer på startsidan
+      el.style.opacity = isLanding ? '0' : '1';
+      el.style.pointerEvents = isLanding ? 'none' : '';
     });
-  }, [resorts, activeId]);
+  }, [resorts, activeId, isLanding]);
 
-  // Kör map.resize() på varje frame i 300 ms så kartan växer i takt med panelanimationen
+  // Kör map.resize() på varje frame i 300 ms under panelanimationen
   useEffect(() => {
     if (resizeTrigger === 0) return;
     const map = mapRef.current;
@@ -144,7 +157,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     map.setLayoutProperty('opensnowmap-layer', 'visibility', showSnowMap ? 'visible' : 'none');
   }, [showSnowMap]);
 
-  // Fly to target when requested
+  // Fly to target när ort väljs
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !flyTarget) return;
@@ -156,15 +169,17 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     });
   }, [flyTarget]);
 
-  // Lås/lås-upp kartinteraktion och zooma vid rutte-växling
+  // Lås/lås-upp interaktion, dölj/visa lager och flyTo vid rutte-växling
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+
     const handlers = [
       map.dragPan, map.scrollZoom, map.boxZoom,
       map.dragRotate, map.keyboard, map.doubleClickZoom,
       map.touchZoomRotate,
     ] as Array<{ enable(): void; disable(): void }>;
+
     if (isLanding) {
       handlers.forEach((h) => h.disable());
       map.flyTo({ center: CENTER, zoom: ZOOM_LANDING, duration: 1600, essential: true });
@@ -172,6 +187,12 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       handlers.forEach((h) => h.enable());
       map.flyTo({ center: CENTER, zoom: ZOOM_MAP, duration: 1000, essential: true });
     }
+
+    // Hantera lagerdöljning (kräver att stilen är laddad)
+    if (map.isStyleLoaded()) {
+      applyLayerVisibility(map, isLanding, hiddenLayersRef);
+    }
+    // Om stilen inte är laddad än hanteras det i on('load')-callbacken ovan
   }, [isLanding]);
 
   return (
@@ -180,4 +201,32 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sky-200/10 via-transparent to-blue-300/15 mix-blend-multiply" />
     </>
   );
+}
+
+// Döljer eller återställer etiketter, vägar och landsgränser
+function applyLayerVisibility(
+  map: mapboxgl.Map,
+  hide: boolean,
+  hiddenRef: MutableRefObject<string[]>,
+) {
+  if (hide) {
+    const toHide = map.getStyle().layers
+      .filter((l) => {
+        if (l.type === 'symbol') return true;
+        if (l.type === 'line' && HIDE_LINE_PATTERN.test(l.id)) return true;
+        return false;
+      })
+      .filter((l) => {
+        try { return map.getLayoutProperty(l.id, 'visibility') !== 'none'; }
+        catch { return false; }
+      })
+      .map((l) => l.id);
+    hiddenRef.current = toHide;
+    toHide.forEach((id) => map.setLayoutProperty(id, 'visibility', 'none'));
+  } else {
+    hiddenRef.current.forEach((id) => {
+      try { map.setLayoutProperty(id, 'visibility', 'visible'); } catch (_) {}
+    });
+    hiddenRef.current = [];
+  }
 }
