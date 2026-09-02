@@ -37,6 +37,14 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       map.on('load', () => {
         map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-left');
         map.on('zoomend', () => console.log('zoom:', map.getZoom()));
+        map.setPaintProperty('aerialway', 'line-color', '#444444');
+        map.setPaintProperty('aerialway', 'line-width', [
+          'interpolate', ['exponential', 1.5], ['zoom'],
+          10, 1.5,
+          16, 2.5,
+        ]);
+        map.setPaintProperty('aerialway', 'line-dasharray', undefined);
+        map.setLayerZoomRange('aerialway', 9, 24);
         map.addSource('opensnowmap', {
           type: 'raster',
           tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
@@ -123,7 +131,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     if (!map || !flyTarget) return;
     map.flyTo({
       center: [flyTarget.lng, flyTarget.lat],
-      zoom: flyTarget.zoom ?? 10,
+      zoom: flyTarget.zoom ?? Math.max(map.getZoom(), 11),
       duration: 1400,
       essential: true,
     });

@@ -36,7 +36,7 @@ export default function App() {
 
   const handleSelect = useCallback((resort: Resort) => {
     setActiveResort(resort);
-    setFlyTarget({ lat: resort.lat, lng: resort.lng, zoom: 10, nonce: Date.now() });
+    setFlyTarget({ lat: resort.lat, lng: resort.lng, nonce: Date.now() });
   }, []);
 
   return (
