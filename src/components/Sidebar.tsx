@@ -1,4 +1,4 @@
-import { Search, Train, Snowflake, Clock, Tag } from 'lucide-react';
+import { Search, Train, Snowflake, Clock, Tag, Layers } from 'lucide-react';
 import type { Filters, PriceLevel, Resort } from '@/types';
 
 interface SidebarProps {
@@ -8,11 +8,13 @@ interface SidebarProps {
   allResorts: Resort[];
   activeId: string | null;
   onSelect: (resort: Resort) => void;
+  showSnowMap: boolean;
+  onToggleSnowMap: () => void;
 }
 
 const PRICE_LEVELS: PriceLevel[] = ['$', '$$', '$$$', '$$$$'];
 
-export default function Sidebar({ filters, setFilters, resorts, allResorts, activeId, onSelect }: SidebarProps) {
+export default function Sidebar({ filters, setFilters, resorts, allResorts, activeId, onSelect, showSnowMap, onToggleSnowMap }: SidebarProps) {
   const maxTransferRange = Math.max(...allResorts.map((r) => r.transferMin));
   const maxPisteRange = Math.max(...allResorts.map((r) => r.pisteKm));
 
@@ -124,7 +126,7 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
         </div>
 
         {/* Train switch */}
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
           <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
             <Train className="h-4 w-4 text-emerald-600" /> Endast tåg till ort
           </span>
@@ -136,6 +138,24 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
             <span
               className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
                 filters.trainOnly ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* OpenSnowMap-toggle */}
+        <div className="mb-6 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
+          <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <Layers className="h-4 w-4 text-sky-600" /> Visa pistkarta
+          </span>
+          <button
+            onClick={onToggleSnowMap}
+            className={`relative h-6 w-11 rounded-full transition ${showSnowMap ? 'bg-sky-500' : 'bg-slate-300'}`}
+            aria-pressed={showSnowMap}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                showSnowMap ? 'left-[22px]' : 'left-0.5'
               }`}
             />
           </button>

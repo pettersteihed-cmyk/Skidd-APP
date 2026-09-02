@@ -9,11 +9,12 @@ interface MapViewProps {
   activeId: string | null;
   onSelect: (resort: Resort) => void;
   flyTarget: { lat: number; lng: number; zoom?: number; nonce: number } | null;
+  showSnowMap: boolean;
 }
 
 const CENTER: [number, number] = [6.5, 45.4];
 
-export default function MapView({ resorts, activeId, onSelect, flyTarget }: MapViewProps) {
+export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
@@ -35,6 +36,29 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget }: MapV
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), 'bottom-right');
       map.on('load', () => {
         map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-left');
+        map.on('zoomend', () => console.log('zoom:', map.getZoom()));
+        map.addSource('opensnowmap', {
+          type: 'raster',
+          tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          maxzoom: 16,
+          attribution: '© <a href="https://www.opensnowmap.org">www.opensnowmap.org</a>',
+        });
+        map.addLayer({
+          id: 'opensnowmap-layer',
+          type: 'raster',
+          source: 'opensnowmap',
+          minzoom: 10,
+          paint: {
+            'raster-opacity': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 0,
+              10.5, 1.0,
+              12.5, 1.0,
+              14, 0.45,
+            ],
+          },
+        });
       });
       mapRef.current = map;
     } catch (err) {
@@ -85,6 +109,13 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget }: MapV
       el.classList.toggle('is-active', isActive);
     });
   }, [resorts, activeId]);
+
+  // Slå av/på OpenSnowMap-lagret
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource('opensnowmap')) return;
+    map.setLayoutProperty('opensnowmap-layer', 'visibility', showSnowMap ? 'visible' : 'none');
+  }, [showSnowMap]);
 
   // Fly to target when requested
   useEffect(() => {

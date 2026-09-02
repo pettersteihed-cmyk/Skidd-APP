@@ -20,6 +20,7 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeResort, setActiveResort] = useState<Resort | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; zoom?: number; nonce: number } | null>(null);
+  const [showSnowMap, setShowSnowMap] = useState(true);
 
   const filtered = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
@@ -49,6 +50,8 @@ export default function App() {
           allResorts={RESORTS}
           activeId={activeResort?.name ?? null}
           onSelect={handleSelect}
+          showSnowMap={showSnowMap}
+          onToggleSnowMap={() => setShowSnowMap((v) => !v)}
         />
       </div>
 
@@ -59,6 +62,7 @@ export default function App() {
           activeId={activeResort?.name ?? null}
           onSelect={handleSelect}
           flyTarget={flyTarget}
+          showSnowMap={showSnowMap}
         />
       </main>
 
