@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Search, Train, Snowflake, Clock, Tag, Layers, ChevronDown } from 'lucide-react';
 import type { Filters, PriceLevel, Resort } from '@/types';
 
@@ -87,8 +88,8 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
 
   return (
     <aside className="flex h-full w-full flex-col bg-white">
-      {/* Header */}
-      <div className="border-b border-slate-200 px-5 py-5">
+      {/* Header — klickbar länk tillbaka till startsidan */}
+      <Link to="/" className="block border-b border-slate-200 px-5 py-5 transition hover:bg-slate-50">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-md shadow-blue-500/20">
             <Snowflake className="h-5 w-5" />
@@ -98,7 +99,7 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
             <p className="text-xs text-slate-500">Skidorter explorer</p>
           </div>
         </div>
-      </div>
+      </Link>
 
       {/* Scrollbar area */}
       <div className="flex-1 overflow-y-auto px-5">

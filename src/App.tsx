@@ -1,13 +1,14 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import MapView from '@/components/MapView';
 import Sidebar from '@/components/Sidebar';
 import ResortModal from '@/components/ResortModal';
+import LandingPage from '@/pages/LandingPage';
 import { RESORTS } from '@/data/resorts';
 import type { Filters, Resort } from '@/types';
 
 const MAX_TRANSFER_DEFAULT = Math.max(...RESORTS.map((r) => r.transferMin));
-const MAX_PISTE = Math.max(...RESORTS.map((r) => r.pisteKm));
 
 const DEFAULT_FILTERS: Filters = {
   maxTransfer: MAX_TRANSFER_DEFAULT,
@@ -18,12 +19,21 @@ const DEFAULT_FILTERS: Filters = {
 };
 
 export default function App() {
+  const location = useLocation();
+  const isLanding = location.pathname === '/';
+
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeResort, setActiveResort] = useState<Resort | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; zoom?: number; nonce: number } | null>(null);
   const [showSnowMap, setShowSnowMap] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [resizeTrigger, setResizeTrigger] = useState(0);
+
+  // Styr sidopanelen baserat på rutten
+  useEffect(() => {
+    setSidebarOpen(!isLanding);
+    setResizeTrigger((n) => n + 1);
+  }, [isLanding]);
 
   const filtered = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
@@ -71,19 +81,21 @@ export default function App() {
           </div>
         </div>
 
-        {/* Toggle-knapp — utanför klipp-containern, följer wrapper-kanten */}
-        <button
-          onClick={() => { setSidebarOpen((v) => !v); setResizeTrigger((n) => n + 1); }}
-          aria-label={sidebarOpen ? 'Stäng sidopanel' : 'Öppna sidopanel'}
-          className="absolute right-0 top-1/2 z-[600] -translate-y-1/2 translate-x-full cursor-pointer rounded-r-lg bg-white py-3 pl-1 pr-1.5 shadow-md transition hover:bg-slate-50"
-        >
-          {sidebarOpen
-            ? <ChevronLeft className="h-4 w-4 text-slate-500" />
-            : <ChevronRight className="h-4 w-4 text-slate-500" />}
-        </button>
+        {/* Toggle-knapp — döljs på startsidan */}
+        {!isLanding && (
+          <button
+            onClick={() => { setSidebarOpen((v) => !v); setResizeTrigger((n) => n + 1); }}
+            aria-label={sidebarOpen ? 'Stäng sidopanel' : 'Öppna sidopanel'}
+            className="absolute right-0 top-1/2 z-[600] -translate-y-1/2 translate-x-full cursor-pointer rounded-r-lg bg-white py-3 pl-1 pr-1.5 shadow-md transition hover:bg-slate-50"
+          >
+            {sidebarOpen
+              ? <ChevronLeft className="h-4 w-4 text-slate-500" />
+              : <ChevronRight className="h-4 w-4 text-slate-500" />}
+          </button>
+        )}
       </div>
 
-      {/* Map fills the rest */}
+      {/* Kartan — alltid monterad, överlever navigering */}
       <main className="relative flex-1">
         <MapView
           resorts={filtered}
@@ -92,8 +104,15 @@ export default function App() {
           flyTarget={flyTarget}
           showSnowMap={showSnowMap}
           resizeTrigger={resizeTrigger}
+          isLanding={isLanding}
         />
       </main>
+
+      {/* Ruttvyer — ovanpå kartan */}
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/karta" element={null} />
+      </Routes>
 
       <ResortModal resort={activeResort} onClose={() => setActiveResort(null)} />
     </div>

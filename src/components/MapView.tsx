@@ -11,11 +11,14 @@ interface MapViewProps {
   flyTarget: { lat: number; lng: number; zoom?: number; nonce: number } | null;
   showSnowMap: boolean;
   resizeTrigger: number;
+  isLanding: boolean;
 }
 
 const CENTER: [number, number] = [6.5, 45.4];
+const ZOOM_LANDING = 5.2;
+const ZOOM_MAP = 7.5;
 
-export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger }: MapViewProps) {
+export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
@@ -152,6 +155,24 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       essential: true,
     });
   }, [flyTarget]);
+
+  // Lås/lås-upp kartinteraktion och zooma vid rutte-växling
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const handlers = [
+      map.dragPan, map.scrollZoom, map.boxZoom,
+      map.dragRotate, map.keyboard, map.doubleClickZoom,
+      map.touchZoomRotate,
+    ] as Array<{ enable(): void; disable(): void }>;
+    if (isLanding) {
+      handlers.forEach((h) => h.disable());
+      map.flyTo({ center: CENTER, zoom: ZOOM_LANDING, duration: 1600, essential: true });
+    } else {
+      handlers.forEach((h) => h.enable());
+      map.flyTo({ center: CENTER, zoom: ZOOM_MAP, duration: 1000, essential: true });
+    }
+  }, [isLanding]);
 
   return (
     <>
