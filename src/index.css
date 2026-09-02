@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Map marker pin — NO transition on .ski-marker itself, since Mapbox
+   updates its transform every frame during pan/zoom. Transition would
+   cause the pins to lag behind the map. Scale animation lives on the
+   inner .ski-pin element instead. */
+.ski-marker {
+  cursor: pointer;
+  color: #1d4ed8;
+}
+.ski-marker:hover .ski-pin {
+  transform: scale(1.15) translateY(-2px);
+  z-index: 10;
+}
+.ski-marker.is-active {
+  color: #dc2626;
+  z-index: 20;
+}
+.ski-marker.is-active .ski-pin {
+  transform: scale(1.2) translateY(-2px);
+}
+.ski-pin {
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+  transition: transform 0.2s ease;
+}
+
+/* Range slider styling */
+.slider-blue {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  outline: none;
+}
+.slider-blue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.slider-blue::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.slider-blue::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 3px solid white;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
+  cursor: pointer;
+}
+
+/* Mapbox popup tweaks */
+.mapboxgl-popup-content {
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+/* Wintery tint on the map canvas */
+.mapboxgl-canvas {
+  filter: hue-rotate(190deg) saturate(0.7) brightness(1.05);
+}
+.mapboxgl-map {
+  background: #e8f0f7;
+}
