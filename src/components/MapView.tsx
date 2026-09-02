@@ -27,7 +27,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget }: MapV
       mapboxgl.accessToken = MAPBOX_TOKEN;
       map = new mapboxgl.Map({
         container: containerRef.current,
-        style: 'mapbox://styles/mapbox/light-v11',
+        style: 'mapbox://styles/mapbox/outdoors-v12',
         center: CENTER,
         zoom: 7.5,
         attributionControl: true,
