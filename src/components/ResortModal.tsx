@@ -43,9 +43,9 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
           <button
             onClick={onClose}
             aria-label="Stäng"
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+            className="absolute right-4 top-4 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
           >
-            <X className="h-4 w-4" pointer-events-none />
+            <X className="h-4 w-4 pointer-events-none" />
           </button>
           <div className="relative">
             <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
