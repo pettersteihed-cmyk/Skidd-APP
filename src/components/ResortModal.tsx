@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2,
+  X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2, ChevronDown,
 } from 'lucide-react';
 import type { Resort } from '@/types';
 
@@ -10,12 +10,20 @@ interface ResortModalProps {
 }
 
 export default function ResortModal({ resort, onClose }: ResortModalProps) {
+  // Styr "Mer information" — sätts till true vid klick. Ingen animation/layoutändring kopplad än (nästa steg).
+  const [isExpanded, setIsExpanded] = useState(false);
+
   useEffect(() => {
     if (!resort) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [resort, onClose]);
+
+  // Nollställ expanderat läge när en ny ort öppnas (eller modalen stängs)
+  useEffect(() => {
+    setIsExpanded(false);
+  }, [resort]);
 
   if (!resort) return null;
 
@@ -91,6 +99,16 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
               </div>
             ))}
           </div>
+
+          {/* Mer information — sätter bara isExpanded till true, ingen animation/layoutändring än */}
+          <button
+            onClick={() => setIsExpanded(true)}
+            aria-expanded={isExpanded}
+            className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
+          >
+            Mer information
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>
