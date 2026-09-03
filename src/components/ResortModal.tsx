@@ -68,8 +68,8 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm"
-      onClick={isExpanded ? undefined : onClose}
+      className="fixed inset-0 z-[1000] cursor-pointer bg-slate-900/40 backdrop-blur-sm"
+      onClick={() => (isExpanded ? setIsExpanded(false) : onClose())}
     >
       {/* Modal-kortet — alltid centrerat (top/left 50% + translate -50%/-50%), i både kompakt och
           expanderat läge. Kompakt <-> expanderat är rena CSS-klasser (fast width/height per läge)
@@ -80,12 +80,13 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
       <div
         onClick={(e) => e.stopPropagation()}
         className={`fixed left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-500 ease-in-out ${
-          // Expanderat: samma marginal (3rem) på alla fyra sidor oavsett skärmens proportioner.
+          // Expanderat: samma marginal (1.5rem) på alla fyra sidor oavsett skärmens proportioner —
+          // minskad från 3rem så kortet tar upp något mer av skärmen, men fortfarande symmetriskt.
           // Kompakt: INGEN satt höjd — kortet får sin naturliga höjd efter innehållet (header +
           // badges + stat-grid + knapp), så det aldrig blir högre än det behöver vara. max-h är
           // bara en säkerhetsspärr för ovanligt korta fönster, där kroppen (overflow-y-auto) tar
           // över och scrollar istället för att kortet växer utanför skärmen.
-          isExpanded ? 'h-[calc(100vh-6rem)] w-[calc(100vw-6rem)]' : 'max-h-[85vh] w-[600px]'
+          isExpanded ? 'h-[calc(100vh-3rem)] w-[calc(100vw-3rem)]' : 'max-h-[85vh] w-[600px]'
         }`}
       >
         {/* Header banner — ortens bild om den finns, annars blå gradient som fallback.
@@ -105,7 +106,7 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
           <button
             onClick={() => (isExpanded ? setIsExpanded(false) : onClose())}
             aria-label={isExpanded ? 'Visa kompakt läge' : 'Stäng'}
-            className="absolute right-4 top-4 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
+            className="absolute right-4 top-4 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition hover:bg-black/60"
           >
             <X className="h-4 w-4 pointer-events-none" />
           </button>
