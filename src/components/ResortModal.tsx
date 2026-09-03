@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type TransitionEvent } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2, ChevronDown,
 } from 'lucide-react';
@@ -9,66 +9,14 @@ interface ResortModalProps {
   onClose: () => void;
 }
 
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-// Samma duration/easing för alla geometri-övergångar (kort, bildhuvud, layoutbyte)
-const EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';
-const DURATION_MS = 500;
-const COMPACT_RADIUS = 16; // px — matchar Tailwinds rounded-2xl
-
 export default function ResortModal({ resort, onClose }: ResortModalProps) {
-  const cardRef = useRef<HTMLDivElement>(null);
-  // Kortets naturliga (kompakta) geometri, ommätt varje gång det renderas i sitt CSS-styrda
-  // vilo-läge — det är målet vi animerar tillbaka till när vi fäller ihop från fullskärm.
-  const naturalRectRef = useRef<Rect | null>(null);
-
   const [isExpanded, setIsExpanded] = useState(false);
-  // Explicit pixel-geometri som styr kortets position/storlek under och strax efter en animation.
-  // null = låt CSS-klasserna (kompakt, centrerat kort) sköta layouten själva.
-  const [cardStyle, setCardStyle] = useState<CSSProperties | null>(null);
-
-  const expand = () => {
-    const el = cardRef.current;
-    if (!el) { setIsExpanded(true); return; }
-    const r = el.getBoundingClientRect();
-    // Lås nuvarande (kompakta) geometri som explicita pixelvärden först — inget visuellt hopp —
-    // så nästa uppdatering (fullskärmsmålet) har ett riktigt "från"-läge att animera ifrån.
-    setCardStyle({ top: r.top, left: r.left, width: r.width, height: r.height, borderRadius: COMPACT_RADIUS });
-    requestAnimationFrame(() => {
-      setIsExpanded(true);
-      setCardStyle({ top: 0, left: 0, width: window.innerWidth, height: window.innerHeight, borderRadius: 0 });
-    });
-  };
-
-  const collapse = () => {
-    const el = cardRef.current;
-    const target = naturalRectRef.current;
-    if (!el || !target) { setIsExpanded(false); setCardStyle(null); return; }
-    const r = el.getBoundingClientRect();
-    setCardStyle({ top: r.top, left: r.left, width: r.width, height: r.height, borderRadius: 0 });
-    requestAnimationFrame(() => {
-      setIsExpanded(false);
-      setCardStyle({ top: target.top, left: target.left, width: target.width, height: target.height, borderRadius: COMPACT_RADIUS });
-    });
-  };
-
-  // Efter en avslutad hopfällning: släpp de explicita pixelvärdena så kortet återgår till att
-  // styras av CSS-klasserna (och därmed förblir responsivt om fönstret ändrar storlek).
-  const handleCardTransitionEnd = (e: TransitionEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return;
-    if (!isExpanded) setCardStyle(null);
-  };
 
   useEffect(() => {
     if (!resort) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (isExpanded) collapse();
+      if (isExpanded) setIsExpanded(false);
       else onClose();
     };
     window.addEventListener('keydown', onKey);
@@ -78,17 +26,7 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
   // Nollställ till kompakt läge när en ny ort öppnas (eller modalen stängs)
   useEffect(() => {
     setIsExpanded(false);
-    setCardStyle(null);
   }, [resort]);
-
-  // Mät kortets naturliga (kompakta) geometri varje gång det vilar i CSS-styrt läge.
-  useLayoutEffect(() => {
-    if (!resort || isExpanded || cardStyle) return;
-    const el = cardRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    naturalRectRef.current = { top: r.top, left: r.left, width: r.width, height: r.height };
-  }, [resort, isExpanded, cardStyle]);
 
   if (!resort) return null;
 
@@ -106,27 +44,28 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
       className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm"
       onClick={isExpanded ? undefined : onClose}
     >
-      {/* Modal-kortet — samma element hela vägen: kompakt centrerat kort <-> fullskärm.
-          Position/bredd/höjd/border-radius animeras via transition, ingen ny komponent monteras. */}
+      {/* Modal-kortet — alltid centrerat (top/left 50% + translate -50%/-50%), i både kompakt och
+          expanderat läge. Kompakt <-> expanderat är rena CSS-klasser (fast width/height per läge)
+          som Tailwinds transition-all/duration-500/ease-in-out (= cubic-bezier(0.4,0,0.2,1))
+          animerar deklarativt. Eftersom translate(-50%,-50%) är relativt kortets EGEN storlek
+          räknas centreringen om varje frame medan width/height animerar — det ger "zoomar in från
+          mitten"-känslan utan att vi någonsin mäter eller räknar ut positioner i JS. */}
       <div
-        ref={cardRef}
         onClick={(e) => e.stopPropagation()}
-        onTransitionEnd={handleCardTransitionEnd}
-        style={{
-          ...cardStyle,
-          transitionProperty: 'top, left, width, height, border-radius',
-          transitionDuration: `${DURATION_MS}ms`,
-          transitionTimingFunction: EASE,
-        }}
-        className={`fixed flex flex-col overflow-hidden bg-white shadow-2xl ${
-          cardStyle ? '' : 'left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl'
+        className={`fixed left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-500 ease-in-out ${
+          // Expanderat: samma marginal (3rem) på alla fyra sidor oavsett skärmens proportioner.
+          // Kompakt: INGEN satt höjd — kortet får sin naturliga höjd efter innehållet (header +
+          // badges + stat-grid + knapp), så det aldrig blir högre än det behöver vara. max-h är
+          // bara en säkerhetsspärr för ovanligt korta fönster, där kroppen (overflow-y-auto) tar
+          // över och scrollar istället för att kortet växer utanför skärmen.
+          isExpanded ? 'h-[calc(100vh-6rem)] w-[calc(100vw-6rem)]' : 'max-h-[85vh] w-[600px]'
         }`}
       >
         {/* Header banner — ortens bild om den finns, annars blå gradient som fallback.
-            Krymper något i höjd när modalen är expanderad. */}
+            I expanderat läge 20% lägre än tidigare (450px -> 360px), i samma transition som kortet. */}
         <div
-          className={`relative shrink-0 px-6 pt-5 transition-all duration-500 ease-in-out ${
-            isExpanded ? 'h-20' : 'h-28'
+          className={`relative shrink-0 transition-all duration-500 ease-in-out ${
+            isExpanded ? 'h-[288px]' : 'h-[180px]'
           } ${resort.heroImageUrl ? 'bg-slate-800 bg-cover bg-center' : 'bg-gradient-to-br from-sky-600 via-blue-700 to-indigo-800'}`}
           style={resort.heroImageUrl ? { backgroundImage: `url(${resort.heroImageUrl})` } : undefined}
         >
@@ -137,18 +76,31 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
             <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
           )}
           <button
-            onClick={isExpanded ? collapse : onClose}
+            onClick={() => (isExpanded ? setIsExpanded(false) : onClose())}
             aria-label={isExpanded ? 'Visa kompakt läge' : 'Stäng'}
             className="absolute right-4 top-4 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/40"
           >
             <X className="h-4 w-4 pointer-events-none" />
           </button>
-          <div className="relative">
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
-              <MapPin className="h-3 w-3" /> {resort.region}
-            </span>
-            <h2 className="mt-2 text-lg font-bold leading-tight text-white drop-shadow-sm">{resort.name}</h2>
-          </div>
+          {/* Ortnamn — nere till vänster i bilden, båda lägena (max-w så långa namn radbryter
+              istället för att krocka med badgen på högersidan) */}
+          <h2
+            className={`absolute bottom-5 left-6 max-w-[60%] text-left font-bold leading-tight text-white drop-shadow-md ${
+              isExpanded ? 'text-[42px]' : 'text-lg'
+            }`}
+          >
+            {resort.name}
+          </h2>
+          {/* Region-badge — nere till höger i bilden (motsatt ortnamnet). Expanderat är ~20% mindre
+              än förra stegets dubblade storlek; kompakt är tillbaka på sin ursprungliga, mindre
+              storlek (samma kompakt/expanderat-förhållande som innan badgen dubblades). */}
+          <span
+            className={`absolute bottom-5 right-6 inline-flex max-w-[38%] items-center whitespace-nowrap rounded-full bg-white/20 font-semibold uppercase tracking-wide text-white ${
+              isExpanded ? 'gap-1.5 px-4 py-1 text-lg' : 'gap-1 px-2.5 py-0.5 text-[11px]'
+            }`}
+          >
+            <MapPin className={`shrink-0 ${isExpanded ? 'h-5 w-5' : 'h-3 w-3'}`} /> {resort.region}
+          </span>
         </div>
 
         {/* Body — enkolumn i kompakt läge, två kolumner (~65/35) när expanderad */}
@@ -184,7 +136,7 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
               {/* Mer information — bara synlig i kompakt läge */}
               {!isExpanded && (
                 <button
-                  onClick={expand}
+                  onClick={() => setIsExpanded(true)}
                   className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-800"
                 >
                   Mer information
