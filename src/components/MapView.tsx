@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { MAPBOX_TOKEN } from '@/data/resorts';
@@ -17,6 +17,9 @@ interface MapViewProps {
 const CENTER: [number, number] = [6.5, 45.4];
 const ZOOM_LANDING = 6.8;
 const ZOOM_MAP = 7.5;
+const MAP_PITCH = 60;
+const MAP_BEARING = -20;
+const TERRAIN_EXAGGERATION = 1.3;
 
 // Regex för lager som ska döljas på startsidan (etiketter + vägar + gränser)
 const HIDE_LINE_PATTERN = /road|tunnel|bridge|ferry|admin|country|border|boundary/;
@@ -57,6 +60,7 @@ const BASEMAP_COLOR_LAYERS: Array<{
 ];
 
 export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
+  const [is3D, setIs3D] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const hiddenLayersRef = useRef<string[]>([]);
@@ -100,6 +104,23 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         BASEMAP_COLOR_LAYERS.forEach(({ id, prop, transform }) => {
           if (!map.getLayer(id)) return;
           map.setPaintProperty(id, prop, recolor(map.getPaintProperty(id, prop), transform));
+        });
+        // 3D-terräng (riktig höjddata) + sky layer så det inte blir tomt ovanför horisonten
+        map.addSource('mapbox-dem', {
+          type: 'raster-dem',
+          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          tileSize: 512,
+          maxzoom: 14,
+        });
+        map.setTerrain({ source: 'mapbox-dem', exaggeration: TERRAIN_EXAGGERATION });
+        map.addLayer({
+          id: 'sky',
+          type: 'sky',
+          paint: {
+            'sky-type': 'atmosphere',
+            'sky-atmosphere-sun': [0, 0],
+            'sky-atmosphere-sun-intensity': 15,
+          },
         });
         map.addSource('opensnowmap', {
           type: 'raster',
@@ -206,10 +227,14 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
 
     if (isLanding) {
       handlers.forEach((h) => h.disable());
-      map.flyTo({ center: CENTER, zoom: ZOOM_LANDING, duration: 1600, essential: true });
+      // pitch/bearing nollställs alltid till platt rakt-uppifrån-vy — annars kan startsidans
+      // låsta karta råka visa en lutad/roterad vy kvar från kartläget
+      map.flyTo({ center: CENTER, zoom: ZOOM_LANDING, pitch: 0, bearing: 0, duration: 1600, essential: true });
+      // 3D är alltid standardläget nästa gång man går in i kartvyn
+      setIs3D(true);
     } else {
       handlers.forEach((h) => h.enable());
-      map.flyTo({ center: CENTER, zoom: ZOOM_MAP, duration: 1000, essential: true });
+      map.flyTo({ center: CENTER, zoom: ZOOM_MAP, pitch: MAP_PITCH, bearing: MAP_BEARING, duration: 1000, essential: true });
     }
 
     // Hantera lagerdöljning (kräver att stilen är laddad)
@@ -221,7 +246,37 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     // Om stilen inte är laddad än hanteras det i on('load')-callbacken ovan
   }, [isLanding]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  // Växla 2D/3D via knappen — rör inte center/zoom, och körs bara vid faktisk
+  // knapptryckning (isLanding är avsiktligt INTE en dependency, se isLandingRef-vakten)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || isLandingRef.current) return;
+    if (is3D) {
+      map.dragRotate.enable();
+      map.touchZoomRotate.enable();
+      map.easeTo({ pitch: MAP_PITCH, bearing: MAP_BEARING, duration: 600, essential: true });
+    } else {
+      map.dragRotate.disable();
+      map.touchZoomRotate.disable();
+      map.easeTo({ pitch: 0, bearing: 0, duration: 600, essential: true });
+    }
+  }, [is3D]);
+
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0" />
+      {!isLanding && (
+        <button
+          onClick={() => setIs3D((v) => !v)}
+          aria-label={is3D ? 'Växla till 2D-vy' : 'Växla till 3D-vy'}
+          aria-pressed={is3D}
+          className="absolute right-4 top-4 z-10 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-md transition hover:bg-slate-50"
+        >
+          {is3D ? '3D' : '2D'}
+        </button>
+      )}
+    </>
+  );
 }
 
 // Döljer eller återställer etiketter, vägar och landsgränser
