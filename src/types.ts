@@ -12,6 +12,8 @@ export interface Resort {
   train: boolean;
   skiInOut: string;
   price: PriceLevel;
+  /** Bild till ortmodalens header. Saknas fältet (eller är tomt) faller headern tillbaka på en blå gradient. */
+  heroImageUrl?: string;
 }
 
 export type PriceLevel = '$' | '$$' | '$$$' | '$$$$';
