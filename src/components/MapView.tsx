@@ -21,13 +21,27 @@ const ZOOM_MAP = 7.5;
 // Regex för lager som ska döljas på startsidan (etiketter + vägar + gränser)
 const HIDE_LINE_PATTERN = /road|tunnel|bridge|ferry|admin|country|border|boundary/;
 
+// Klustring: max zoom där punkter kan slås ihop till kluster. Måste vara lägre
+// än golvet för flyTo-zoom (Math.max(map.getZoom(), 11) nedan) så att en ort
+// som nås via flyTarget ALDRIG visas som ett kluster, bara som en enskild nål.
+const CLUSTER_MAX_ZOOM = 10;
+const CLUSTER_RADIUS = 40;
+
+const RESORT_LAYER_IDS = ['clusters', 'cluster-count', 'unclustered-point'];
+
+const PIN_COLOR_DEFAULT = '#1d4ed8';
+const PIN_COLOR_ACTIVE = '#dc2626';
+
 export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Record<string, mapboxgl.Marker>>({});
   const hiddenLayersRef = useRef<string[]>([]);
+  const resortsRef = useRef<Resort[]>(resorts);
+  const activeIdRef = useRef(activeId);
   const onSelectRef = useRef(onSelect);
   const isLandingRef = useRef(isLanding);
+  resortsRef.current = resorts;
+  activeIdRef.current = activeId;
   onSelectRef.current = onSelect;
   isLandingRef.current = isLanding;
 
@@ -82,6 +96,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         if (isLandingRef.current) {
           applyLayerVisibility(map, true, hiddenLayersRef);
         }
+        void setupResortLayers(map, resortsRef, activeIdRef, onSelectRef, !isLandingRef.current);
       });
       mapRef.current = map;
     } catch (err) {
@@ -91,49 +106,24 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     return () => {
       map.remove();
       mapRef.current = null;
-      markersRef.current = {};
     };
   }, []);
 
-  // Markörer: skapa/uppdatera/ta bort, och dölj på startsidan
+  // Uppdatera GeoJSON-källan när den filtrerade ortslistan ändras
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    const source = map.getSource('resorts') as mapboxgl.GeoJSONSource | undefined;
+    if (!source) return;
+    source.setData(buildFeatureCollection(resorts));
+  }, [resorts]);
 
-    const present = new Set(resorts.map((r) => r.name));
-    Object.keys(markersRef.current).forEach((name) => {
-      if (!present.has(name)) {
-        markersRef.current[name].remove();
-        delete markersRef.current[name];
-      }
-    });
-
-    resorts.forEach((resort) => {
-      let marker = markersRef.current[resort.name];
-      const isActive = activeId === resort.name;
-      if (!marker) {
-        const el = document.createElement('div');
-        el.className = 'ski-marker';
-        el.innerHTML = `
-          <div class="ski-pin">
-            <svg width="28" height="36" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 12.5 21.5 13 22 .4.4 1 .4 1.4 0 .5-.5 13-12.5 13-22C27.4 6.27 21.13 0 14 0z" fill="currentColor"/>
-              <circle cx="14" cy="13.5" r="6.5" fill="white"/>
-            </svg>
-          </div>`;
-        el.addEventListener('click', () => onSelectRef.current(resort));
-        marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([resort.lng, resort.lat]);
-        markersRef.current[resort.name] = marker;
-        marker.addTo(map);
-      }
-      const el = marker.getElement();
-      el.classList.toggle('is-active', isActive);
-      // Dölj markörer på startsidan
-      el.style.opacity = isLanding ? '0' : '1';
-      el.style.pointerEvents = isLanding ? 'none' : '';
-    });
-  }, [resorts, activeId, isLanding]);
+  // Uppdatera vilken nål som visas som aktiv (röd ikon)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer('unclustered-point')) return;
+    map.setLayoutProperty('unclustered-point', 'icon-image', activeIconExpression(activeId));
+  }, [activeId]);
 
   // Kör map.resize() på varje frame i 300 ms under panelanimationen
   useEffect(() => {
@@ -192,6 +182,8 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     if (map.isStyleLoaded()) {
       applyLayerVisibility(map, isLanding, hiddenLayersRef);
     }
+    // Dölj/visa klustringslagren (nålar + kluster) på samma sätt som etiketter/vägar
+    setResortLayersVisibility(map, !isLanding);
     // Om stilen inte är laddad än hanteras det i on('load')-callbacken ovan
   }, [isLanding]);
 
@@ -229,4 +221,170 @@ function applyLayerVisibility(
     });
     hiddenRef.current = [];
   }
+}
+
+// Visar/döljer klustringslagren (kluster + enskilda nålar) som en enhet
+function setResortLayersVisibility(map: mapboxgl.Map, visible: boolean) {
+  RESORT_LAYER_IDS.forEach((id) => {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    }
+  });
+}
+
+// Bygger GeoJSON-uttrycket som väljer aktiv (röd) eller vanlig (blå) pin-ikon
+function activeIconExpression(activeId: string | null) {
+  return ['case', ['==', ['get', 'name'], activeId ?? ''], 'ski-pin-active', 'ski-pin'];
+}
+
+// Bygger en GeoJSON FeatureCollection av orterna för klustringskällan
+function buildFeatureCollection(resorts: Resort[]) {
+  return {
+    type: 'FeatureCollection' as const,
+    features: resorts.map((resort) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [resort.lng, resort.lat] as [number, number],
+      },
+      properties: { name: resort.name },
+    })),
+  };
+}
+
+// Rasteriserar skidpin-SVG:n (samma form som tidigare DOM-markör) i given färg,
+// med inbakad drop-shadow, till en bild som kan registreras med map.addImage.
+function loadPinImage(color: string): Promise<HTMLImageElement> {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="72" viewBox="0 0 28 36">
+      <defs>
+        <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity="0.35"/>
+        </filter>
+      </defs>
+      <g filter="url(#shadow)">
+        <path d="M14 0C6.27 0 0 6.27 0 14c0 9.5 12.5 21.5 13 22 .4.4 1 .4 1.4 0 .5-.5 13-12.5 13-22C27.4 6.27 21.13 0 14 0z" fill="${color}"/>
+        <circle cx="14" cy="13.5" r="6.5" fill="#ffffff"/>
+      </g>
+    </svg>`;
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.width = 56;
+    img.height = 72;
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Kunde inte ladda pin-ikon'));
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+}
+
+// Lägger till klustringskälla, kluster-/pin-lager och deras klick-/hover-hantering.
+// Körs en gång från map.on('load', ...) — lyssnarna registreras bara här och
+// läser alltid senaste data via refs, precis som övrig klick-hantering i filen.
+async function setupResortLayers(
+  map: mapboxgl.Map,
+  resortsRef: MutableRefObject<Resort[]>,
+  activeIdRef: MutableRefObject<string | null>,
+  onSelectRef: MutableRefObject<(resort: Resort) => void>,
+  visibleOnLoad: boolean,
+) {
+  const [defaultPin, activePin] = await Promise.all([
+    loadPinImage(PIN_COLOR_DEFAULT),
+    loadPinImage(PIN_COLOR_ACTIVE),
+  ]);
+  if (!map.hasImage('ski-pin')) map.addImage('ski-pin', defaultPin, { pixelRatio: 2 });
+  if (!map.hasImage('ski-pin-active')) map.addImage('ski-pin-active', activePin, { pixelRatio: 2 });
+
+  map.addSource('resorts', {
+    type: 'geojson',
+    data: buildFeatureCollection(resortsRef.current),
+    cluster: true,
+    clusterMaxZoom: CLUSTER_MAX_ZOOM,
+    clusterRadius: CLUSTER_RADIUS,
+  });
+
+  map.addLayer({
+    id: 'clusters',
+    type: 'circle',
+    source: 'resorts',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': ['step', ['get', 'point_count'], '#60a5fa', 3, '#3b82f6', 6, '#1d4ed8'],
+      'circle-radius': ['step', ['get', 'point_count'], 16, 3, 20, 6, 24],
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff',
+    },
+  });
+
+  map.addLayer({
+    id: 'cluster-count',
+    type: 'symbol',
+    source: 'resorts',
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': ['get', 'point_count_abbreviated'],
+      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      'text-size': 13,
+    },
+    paint: { 'text-color': '#ffffff' },
+  });
+
+  map.addLayer({
+    id: 'unclustered-point',
+    type: 'symbol',
+    source: 'resorts',
+    filter: ['!', ['has', 'point_count']],
+    layout: {
+      'icon-image': activeIconExpression(activeIdRef.current),
+      'icon-anchor': 'bottom',
+      'icon-allow-overlap': true,
+    },
+  });
+
+  setResortLayersVisibility(map, visibleOnLoad);
+
+  // Tooltip som visar ortens namn vid hover över en enskild nål
+  const tooltip = new mapboxgl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    anchor: 'bottom',
+    offset: [0, -36] as [number, number],
+    className: 'resort-tooltip',
+  });
+
+  map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = ''; });
+  map.on('mouseenter', 'unclustered-point', (e) => {
+    map.getCanvas().style.cursor = 'pointer';
+    const feature = e.features?.[0];
+    const name = feature?.properties?.name as string | undefined;
+    if (!name) return;
+    const coords = (feature.geometry as { coordinates: [number, number] }).coordinates;
+    tooltip.setLngLat(coords).setText(name).addTo(map);
+  });
+  map.on('mouseleave', 'unclustered-point', () => {
+    map.getCanvas().style.cursor = '';
+    tooltip.remove();
+  });
+
+  // Klick på kluster: zooma in till nivån där klustret bryts upp
+  map.on('click', 'clusters', (e) => {
+    const feature = e.features?.[0];
+    if (!feature) return;
+    const clusterId = feature.properties?.cluster_id as number;
+    const source = map.getSource('resorts') as mapboxgl.GeoJSONSource;
+    source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+      if (err || zoom == null) return;
+      const coords = (feature.geometry as { coordinates: [number, number] }).coordinates;
+      map.easeTo({ center: coords, zoom });
+    });
+  });
+
+  // Klick på enskild nål: öppna detaljvyn precis som tidigare
+  map.on('click', 'unclustered-point', (e) => {
+    const feature = e.features?.[0];
+    const name = feature?.properties?.name as string | undefined;
+    if (!name) return;
+    const resort = resortsRef.current.find((r) => r.name === name);
+    if (resort) onSelectRef.current(resort);
+  });
 }
