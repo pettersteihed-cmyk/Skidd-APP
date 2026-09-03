@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2, ChevronDown,
+  Ticket, BedDouble, Car, Package, ArrowUpRight,
 } from 'lucide-react';
 import type { Resort } from '@/types';
 
@@ -37,6 +38,32 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     { icon: Ruler, label: 'Pistlängd', value: `${resort.pisteKm} km` },
     { icon: Clock, label: 'Transfertid', value: `${resort.transferMin} min` },
     { icon: Plane, label: 'Närmaste flygplats', value: resort.airport },
+  ];
+
+  // Affiliate Hub — högerkolumnens konverteringsyta i expanderat läge. Använder platshållar-URL:er
+  // från resort.affiliateLinks om de finns i datan, annars ett dummy-href tills riktiga länkar finns.
+  const affiliateButtons = [
+    { icon: Ticket, label: 'Köp liftkort', href: resort.affiliateLinks?.liftPass ?? '#' },
+    { icon: BedDouble, label: 'Boka boende', href: resort.affiliateLinks?.accommodation ?? '#' },
+    { icon: Car, label: 'Boka hyrbil', href: resort.affiliateLinks?.carRental ?? '#' },
+    { icon: Package, label: 'Hyr skidutrustning', href: resort.affiliateLinks?.equipmentRental ?? '#' },
+  ];
+
+  // Pistfördelning — faller tillbaka på jämn fördelning om fältet saknas (bör inte hända, alla 15
+  // orter har det ifyllt, men skyddar mot framtida orter utan data).
+  const pc = resort.pisteColors ?? { green: 25, blue: 25, red: 25, black: 25 };
+  const pisteSegments = [
+    { key: 'green', label: 'Grön', value: pc.green, bar: 'bg-green-500', dot: 'bg-green-500' },
+    { key: 'blue', label: 'Blå', value: pc.blue, bar: 'bg-blue-500', dot: 'bg-blue-500' },
+    { key: 'red', label: 'Röd', value: pc.red, bar: 'bg-red-500', dot: 'bg-red-500' },
+    { key: 'black', label: 'Svart', value: pc.black, bar: 'bg-slate-900', dot: 'bg-slate-900' },
+  ];
+
+  // Praktisk info — den första flygplatsen är alltid resort.airport/transferMin;
+  // additionalAirports (om någon ort någonsin får fler) läggs på efter.
+  const allAirports = [
+    { name: resort.airport, transferMin: resort.transferMin },
+    ...(resort.additionalAirports ?? []),
   ];
 
   return (
@@ -103,11 +130,14 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
           </span>
         </div>
 
-        {/* Body — enkolumn i kompakt läge, två kolumner (~65/35) när expanderad */}
+        {/* Body — enkolumn i kompakt läge, två kolumner (~65/35) när expanderad.
+            I expanderat läge har raden en fast höjd (h-full, matchar kortets kvarvarande höjd) och
+            bara vänsterkolumnen scrollar internt (sin egen overflow-y-auto) — högerkolumnen
+            (Affiliate Hub) och bilden ovanför påverkas aldrig av hur mycket text vänsterkolumnen får. */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div className={isExpanded ? 'grid grid-cols-[65%_35%] gap-6' : ''}>
-            {/* Vänster kolumn — taggar, stat-grid och (senare) längre brödtext */}
-            <div>
+          <div className={isExpanded ? 'grid h-full items-start grid-cols-[65%_35%] gap-6' : ''}>
+            {/* Vänster kolumn — taggar, stat-grid, och i expanderat läge: Om orten / Pistfördelning / Praktisk info */}
+            <div className={isExpanded ? 'h-full overflow-y-auto pr-1' : ''}>
               {/* badges */}
               <div className="mb-4 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
@@ -133,6 +163,62 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                 ))}
               </div>
 
+              {/* Fördjupad info — bara i expanderat läge */}
+              {isExpanded && (
+                <>
+                  {/* Om orten */}
+                  {resort.description && (
+                    <div className="mt-5">
+                      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Om orten</h3>
+                      <p className="text-sm leading-relaxed text-slate-600">{resort.description}</p>
+                    </div>
+                  )}
+
+                  {/* Pistfördelning */}
+                  <div className="mt-5">
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Pistfördelning</h3>
+                    <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                      {pisteSegments.map((seg) => (
+                        seg.value > 0 && (
+                          <div key={seg.key} className={seg.bar} style={{ width: `${seg.value}%` }} title={`${seg.label} ${seg.value}%`} />
+                        )
+                      ))}
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+                      {pisteSegments.map((seg) => (
+                        <span key={seg.key} className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <span className={`h-2 w-2 rounded-full ${seg.dot}`} />
+                          {seg.label} {seg.value}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Praktisk info */}
+                  <div className="mt-5">
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Praktisk info</h3>
+                    <dl className="text-sm">
+                      {resort.season && (
+                        <div className="flex items-center justify-between border-b border-slate-100 py-2">
+                          <dt className="text-slate-500">Säsong</dt>
+                          <dd className="font-semibold text-slate-800">{resort.season}</dd>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between border-b border-slate-100 py-2">
+                        <dt className="text-slate-500">Höjdskillnad</dt>
+                        <dd className="font-semibold text-slate-800">{resort.maxAlt - resort.minAlt} m</dd>
+                      </div>
+                      {allAirports.map((a, i) => (
+                        <div key={`${a.name}-${i}`} className="flex items-center justify-between border-b border-slate-100 py-2 last:border-0">
+                          <dt className="text-slate-500">{allAirports.length > 1 ? `Flygplats ${i + 1}` : 'Flygplats'}</dt>
+                          <dd className="font-semibold text-slate-800">{a.name} · {a.transferMin} min</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                </>
+              )}
+
               {/* Mer information — bara synlig i kompakt läge */}
               {!isExpanded && (
                 <button
@@ -145,8 +231,28 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
               )}
             </div>
 
-            {/* Höger kolumn — reserverad, fylls i steg 4 */}
-            {isExpanded && <div />}
+            {/* Höger kolumn — Affiliate Hub, mörkblå konverteringsyta som sticker ut mot resten av kortet */}
+            {isExpanded && (
+              <div className="rounded-2xl bg-gradient-to-b from-blue-950 to-slate-900 p-5">
+                <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-blue-300">Affiliate Hub</h3>
+                <p className="mb-4 text-[11px] text-blue-100/60">Boka det du behöver för resan</p>
+                <div className="space-y-2.5">
+                  {affiliateButtons.map((b) => (
+                    <a
+                      key={b.label}
+                      href={b.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-center gap-2.5 rounded-xl bg-white/10 px-3.5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                    >
+                      <b.icon className="h-4 w-4 shrink-0 text-blue-300" />
+                      <span className="flex-1">{b.label}</span>
+                      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-blue-300/70 transition group-hover:text-white" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
