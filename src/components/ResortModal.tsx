@@ -37,9 +37,19 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
         className="relative w-full max-w-lg overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header banner */}
-        <div className="relative h-28 bg-gradient-to-br from-sky-600 via-blue-700 to-indigo-800 px-6 pt-5">
-          <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+        {/* Header banner — ortens bild om den finns, annars blå gradient som fallback */}
+        <div
+          className={`relative h-28 px-6 pt-5 ${
+            resort.heroImageUrl ? 'bg-slate-800 bg-cover bg-center' : 'bg-gradient-to-br from-sky-600 via-blue-700 to-indigo-800'
+          }`}
+          style={resort.heroImageUrl ? { backgroundImage: `url(${resort.heroImageUrl})` } : undefined}
+        >
+          {resort.heroImageUrl ? (
+            // Mörk gradient-overlay ovanpå bilden — transparent högst upp, mörkare mot botten, så vit text förblir läsbar
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/30 to-black/70 pointer-events-none" />
+          ) : (
+            <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 30%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          )}
           <button
             onClick={onClose}
             aria-label="Stäng"
