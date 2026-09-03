@@ -12,28 +12,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Map marker pin — NO transition on .ski-marker itself, since Mapbox
-   updates its transform every frame during pan/zoom. Transition would
-   cause the pins to lag behind the map. Scale animation lives on the
-   inner .ski-pin element instead. */
-.ski-marker {
-  cursor: pointer;
-  color: #1d4ed8;
+/* Tooltip för ort-nålar — ska aldrig fånga klick, bara visa namnet */
+.resort-tooltip {
+  pointer-events: none;
 }
-.ski-marker:hover .ski-pin {
-  transform: scale(1.15) translateY(-2px);
-  z-index: 10;
-}
-.ski-marker.is-active {
-  color: #dc2626;
-  z-index: 20;
-}
-.ski-marker.is-active .ski-pin {
-  transform: scale(1.2) translateY(-2px);
-}
-.ski-pin {
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
-  transition: transform 0.2s ease;
+.resort-tooltip .mapboxgl-popup-content {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 /* Range slider styling */
@@ -76,10 +64,6 @@ body {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
 }
 
-/* Wintery tint on the map canvas */
-.mapboxgl-canvas {
-  filter: hue-rotate(190deg) saturate(0.7) brightness(1.05);
-}
 .mapboxgl-map {
   background: #e8f0f7;
 }
