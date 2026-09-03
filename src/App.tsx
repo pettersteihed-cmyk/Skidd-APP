@@ -25,7 +25,7 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeResort, setActiveResort] = useState<Resort | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; zoom?: number; nonce: number } | null>(null);
-  const [showSnowMap, setShowSnowMap] = useState(true);
+  const [showSnowMap, setShowSnowMap] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [resizeTrigger, setResizeTrigger] = useState(0);
 
