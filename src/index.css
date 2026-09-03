@@ -64,10 +64,6 @@ body {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
 }
 
-/* Wintery tint on the map canvas */
-.mapboxgl-canvas {
-  filter: hue-rotate(190deg) saturate(0.7) brightness(1.05);
-}
 .mapboxgl-map {
   background: #e8f0f7;
 }

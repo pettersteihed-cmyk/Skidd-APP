@@ -32,6 +32,30 @@ const RESORT_LAYER_IDS = ['clusters', 'cluster-count', 'unclustered-point'];
 const PIN_COLOR_DEFAULT = '#1d4ed8';
 const PIN_COLOR_ACTIVE = '#dc2626';
 
+// Baskartans terräng-, landtäcke- och vattenlager som ska färgsättas om (outdoors-v12).
+// Vägar, byggnader, admin-gränser och opensnowmap-layer rörs inte. Terräng/landtäcke
+// gråtonas, vatten får en egen lågmäld blå kulör — se transform-fältet.
+const BASEMAP_COLOR_LAYERS: Array<{
+  id: string;
+  prop: 'background-color' | 'fill-color' | 'line-color';
+  transform: ColorTransform;
+}> = [
+  { id: 'land', prop: 'background-color', transform: terrainTransform },
+  { id: 'landcover', prop: 'fill-color', transform: terrainTransform },
+  { id: 'landuse', prop: 'fill-color', transform: terrainTransform },
+  { id: 'national-park', prop: 'fill-color', transform: terrainTransform },
+  { id: 'national-park_tint-band', prop: 'line-color', transform: terrainTransform },
+  { id: 'wetland', prop: 'fill-color', transform: terrainTransform },
+  { id: 'wetland-pattern', prop: 'fill-color', transform: terrainTransform },
+  { id: 'hillshade', prop: 'fill-color', transform: terrainTransform },
+  { id: 'contour-line', prop: 'line-color', transform: terrainTransform },
+  { id: 'water', prop: 'fill-color', transform: waterTransform },
+  { id: 'water-shadow', prop: 'fill-color', transform: waterTransform },
+  { id: 'water-depth', prop: 'fill-color', transform: waterTransform },
+  { id: 'waterway', prop: 'line-color', transform: waterTransform },
+  { id: 'waterway-shadow', prop: 'line-color', transform: waterTransform },
+];
+
 export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -40,10 +64,12 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const activeIdRef = useRef(activeId);
   const onSelectRef = useRef(onSelect);
   const isLandingRef = useRef(isLanding);
+  const showSnowMapRef = useRef(showSnowMap);
   resortsRef.current = resorts;
   activeIdRef.current = activeId;
   onSelectRef.current = onSelect;
   isLandingRef.current = isLanding;
+  showSnowMapRef.current = showSnowMap;
 
   // Karta-initialisering
   useEffect(() => {
@@ -70,6 +96,11 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         ]);
         map.setPaintProperty('aerialway', 'line-dasharray', undefined);
         map.setLayerZoomRange('aerialway', 9, 24);
+        // Gör baskartans terräng/landtäcke gråtonad och vattnet lågmält blått (rör inte vägar/admin/OpenSnowMap)
+        BASEMAP_COLOR_LAYERS.forEach(({ id, prop, transform }) => {
+          if (!map.getLayer(id)) return;
+          map.setPaintProperty(id, prop, recolor(map.getPaintProperty(id, prop), transform));
+        });
         map.addSource('opensnowmap', {
           type: 'raster',
           tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
@@ -82,6 +113,9 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
           type: 'raster',
           source: 'opensnowmap',
           minzoom: 10,
+          layout: {
+            visibility: showSnowMapRef.current ? 'visible' : 'none',
+          },
           paint: {
             'raster-opacity': [
               'interpolate', ['linear'], ['zoom'],
@@ -187,12 +221,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     // Om stilen inte är laddad än hanteras det i on('load')-callbacken ovan
   }, [isLanding]);
 
-  return (
-    <>
-      <div ref={containerRef} className="absolute inset-0" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sky-200/10 via-transparent to-blue-300/15 mix-blend-multiply" />
-    </>
-  );
+  return <div ref={containerRef} className="absolute inset-0" />;
 }
 
 // Döljer eller återställer etiketter, vägar och landsgränser
@@ -230,6 +259,49 @@ function setResortLayersVisibility(map: mapboxgl.Map, visible: boolean) {
       map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
     }
   });
+}
+
+const HSL_COLOR_PATTERN = /^hsla?\(\s*[\d.]+\s*,\s*[\d.]+%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+))?\s*\)$/i;
+
+// Räknar om en hsl(...)-ljushet (0-100) till en ny {h, s, l} — s och h är fasta
+// per kurva, bara l räknas ut från originalvärdet.
+type ColorTransform = (lightness: number) => { h: number; s: number; l: number };
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+// Terräng/landtäcke: gråtonar (mättnad 0) och sprider ut ljusheten så att konturlinjer/
+// bergsskuggor (35% i originalstilen) blir tydligt mörkare golv (65%) och land/bakgrund
+// (85%) blir en ljusgrå — inte vit — yta (93%). Större spridning = tydligare bergsform.
+function terrainTransform(l: number): { h: number; s: number; l: number } {
+  return { h: 0, s: 0, l: clamp(65 + (l - 35) * 0.56, 55, 96) };
+}
+
+// Vatten: byter bort grått mot en lågmäld ljusblå (fast nyans/mättnad), med ljushet
+// nedskalad från originalvärdet så ytvatten (70% i originalstilen) hamnar runt 65%
+// och djupare vatten (lägre originalvärde) blir mörkare blått, inte grått.
+function waterTransform(l: number): { h: number; s: number; l: number } {
+  return { h: 206, s: 30, l: clamp(l - 5, 45, 68) };
+}
+
+// Läser ljusheten ur en hsl(...)/hsla(...)-färgsträng och bygger om den med given
+// transform, t.ex. "hsl(103, 50%, 60%)" (grönt) blir "hsl(0, 0%, 79%)" (grått).
+function recolorString(value: string, transform: ColorTransform): string {
+  const match = value.match(HSL_COLOR_PATTERN);
+  if (!match) return value;
+  const [, lightness, alpha] = match;
+  const { h, s, l } = transform(Number(lightness));
+  return alpha !== undefined ? `hsla(${h}, ${s}%, ${l}%, ${alpha})` : `hsl(${h}, ${s}%, ${l}%)`;
+}
+
+// Går rekursivt igenom ett Mapbox paint-uttryck (sträng, tal eller nästlad array,
+// t.ex. match/interpolate-uttryck) och färgsätter om varje hsl(...)/hsla(...)-färgsträng
+// den hittar. Allt annat i uttrycket (operatorer, zoomstopp, klassnamn) lämnas orört.
+function recolor(value: unknown, transform: ColorTransform): unknown {
+  if (typeof value === 'string') return recolorString(value, transform);
+  if (Array.isArray(value)) return value.map((v) => recolor(v, transform));
+  return value;
 }
 
 // Bygger GeoJSON-uttrycket som väljer aktiv (röd) eller vanlig (blå) pin-ikon
