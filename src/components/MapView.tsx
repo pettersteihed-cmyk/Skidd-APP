@@ -60,7 +60,9 @@ const BASEMAP_COLOR_LAYERS: Array<{
 ];
 
 export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
-  const [is3D, setIs3D] = useState(true);
+  // 2D är standardläget varje gång man navigerar in i kartvyn — 3D är en manuell toggle (knappen
+  // nedan), inte något som ska aktiveras automatiskt.
+  const [is3D, setIs3D] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const hiddenLayersRef = useRef<string[]>([]);
@@ -230,11 +232,12 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       // pitch/bearing nollställs alltid till platt rakt-uppifrån-vy — annars kan startsidans
       // låsta karta råka visa en lutad/roterad vy kvar från kartläget
       map.flyTo({ center: CENTER, zoom: ZOOM_LANDING, pitch: 0, bearing: 0, duration: 1600, essential: true });
-      // 3D är alltid standardläget nästa gång man går in i kartvyn
-      setIs3D(true);
+      // 2D är alltid standardläget nästa gång man går in i kartvyn (3D väljs manuellt via knappen)
+      setIs3D(false);
     } else {
       handlers.forEach((h) => h.enable());
-      map.flyTo({ center: CENTER, zoom: ZOOM_MAP, pitch: MAP_PITCH, bearing: MAP_BEARING, duration: 1000, essential: true });
+      // pitch/bearing: 0 = öppna alltid i 2D, rakt uppifrån — 3D aktiveras bara manuellt (is3D-effekten nedan)
+      map.flyTo({ center: CENTER, zoom: ZOOM_MAP, pitch: 0, bearing: 0, duration: 1000, essential: true });
     }
 
     // Hantera lagerdöljning (kräver att stilen är laddad)
