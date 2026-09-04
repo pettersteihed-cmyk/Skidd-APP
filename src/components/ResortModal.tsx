@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2, ChevronDown,
-  Ticket, BedDouble, Car, Package, ArrowUpRight,
+  Ticket, BedDouble, Car, Package, ArrowUpRight, TrendingDown, Calendar,
 } from 'lucide-react';
 import type { Resort } from '@/types';
 
@@ -100,11 +100,32 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     { key: 'black', label: 'Svart', value: pc.black, bar: 'bg-slate-900', dot: 'bg-slate-900' },
   ];
 
-  // Praktisk info — den första flygplatsen är alltid resort.airport/transferMin;
-  // additionalAirports (om någon ort någonsin får fler) läggs på efter.
+  // Den första flygplatsen är alltid resort.airport/transferMin; additionalAirports (om någon ort
+  // någonsin får fler) läggs på efter.
   const allAirports = [
     { name: resort.airport, transferMin: resort.transferMin },
     ...(resort.additionalAirports ?? []),
+  ];
+
+  // "Skidsystemet" (expanderat läge) — terrängrelaterad info: höjder + pistlängd. Fallhöjd räknas
+  // ut från maxAlt/minAlt (finns inget eget fält för det).
+  const terrainTiles = [
+    { icon: Mountain, label: 'Tophöjd', value: `${resort.maxAlt} m` },
+    { icon: ArrowDown, label: 'Dalhöjd', value: `${resort.minAlt} m` },
+    { icon: TrendingDown, label: 'Fallhöjd', value: `${resort.maxAlt - resort.minAlt} m` },
+    { icon: Ruler, label: 'Pistlängd', value: `${resort.pisteKm} km` },
+  ];
+
+  // "Resa & praktiskt" (expanderat läge) — logistik: transfertid, flygplats(er), liftar, säsong.
+  const travelTiles = [
+    { icon: Clock, label: 'Transfertid', value: `${resort.transferMin} min` },
+    ...allAirports.map((a, i) => ({
+      icon: Plane,
+      label: allAirports.length > 1 ? `Flygplats ${i + 1}` : 'Flygplats',
+      value: `${a.name} · ${a.transferMin} min`,
+    })),
+    { icon: Cable, label: 'Liftar', value: `${resort.lifts}` },
+    ...(resort.season ? [{ icon: Calendar, label: 'Säsong', value: resort.season }] : []),
   ];
 
   // Header-innehållet (bild/gradient, namn, badge) delas mellan kompakt läge, det normala
@@ -212,14 +233,15 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
             det aldrig syns två bilder samtidigt. Ingen kapslad/separat scroll för höger- eller
             vänsterkolumnen — Affiliate Hub scrollar med som vanlig text istället för att kännas
             fastlåst. */}
-        <div ref={scrollRef} onScroll={isExpanded ? handleScroll : undefined} className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} onScroll={isExpanded ? handleScroll : undefined} className="flex-1 overflow-y-auto scrollbar-thin">
           {isExpanded ? (
             <>
               <div ref={headerRef} style={overlayTranslate !== null ? { visibility: 'hidden' } : undefined}>
                 {headerBanner}
               </div>
               <div className="grid grid-cols-[65%_35%] gap-6 px-6 py-5">
-                {/* Vänster kolumn — taggar, stat-grid, Om orten / Pistfördelning / Praktisk info */}
+                {/* Vänster kolumn — ordning: taggar → Om orten → Skidsystemet (höjder/pistlängd +
+                    pistfördelning) → Resa & praktiskt (transfertid/flygplats/liftar/säsong) */}
                 <div>
                   {/* badges */}
                   <div className="mb-4 flex flex-wrap gap-2">
@@ -234,67 +256,60 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                     </span>
                   </div>
 
-                  {/* stats grid */}
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                    {stats.map((s) => (
-                      <div key={s.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                          <s.icon className="h-3 w-3" /> {s.label}
-                        </div>
-                        <div className="mt-0.5 text-sm font-bold text-slate-800">{s.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
                   {/* Om orten */}
                   {resort.description && (
-                    <div className="mt-5">
+                    <div className="mb-5">
                       <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Om orten</h3>
                       <p className="text-sm leading-relaxed text-slate-600">{resort.description}</p>
                     </div>
                   )}
 
-                  {/* Pistfördelning */}
-                  <div className="mt-5">
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Pistfördelning</h3>
-                    <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                      {pisteSegments.map((seg) => (
-                        seg.value > 0 && (
-                          <div key={seg.key} className={seg.bar} style={{ width: `${seg.value}%` }} title={`${seg.label} ${seg.value}%`} />
-                        )
+                  {/* Skidsystemet — höjder/pistlängd, med pistfördelningen direkt under eftersom den hör ihop tematiskt */}
+                  <div className="mb-5">
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Skidsystemet</h3>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {terrainTiles.map((t) => (
+                        <div key={t.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            <t.icon className="h-3 w-3" /> {t.label}
+                          </div>
+                          <div className="mt-0.5 text-sm font-bold text-slate-800">{t.value}</div>
+                        </div>
                       ))}
                     </div>
-                    <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
-                      {pisteSegments.map((seg) => (
-                        <span key={seg.key} className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <span className={`h-2 w-2 rounded-full ${seg.dot}`} />
-                          {seg.label} {seg.value}%
-                        </span>
-                      ))}
+                    <div className="mt-4">
+                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Pistfördelning</div>
+                      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                        {pisteSegments.map((seg) => (
+                          seg.value > 0 && (
+                            <div key={seg.key} className={seg.bar} style={{ width: `${seg.value}%` }} title={`${seg.label} ${seg.value}%`} />
+                          )
+                        ))}
+                      </div>
+                      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+                        {pisteSegments.map((seg) => (
+                          <span key={seg.key} className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <span className={`h-2 w-2 rounded-full ${seg.dot}`} />
+                            {seg.label} {seg.value}%
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Praktisk info */}
-                  <div className="mt-5">
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Praktisk info</h3>
-                    <dl className="text-sm">
-                      {resort.season && (
-                        <div className="flex items-center justify-between border-b border-slate-100 py-2">
-                          <dt className="text-slate-500">Säsong</dt>
-                          <dd className="font-semibold text-slate-800">{resort.season}</dd>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between border-b border-slate-100 py-2">
-                        <dt className="text-slate-500">Höjdskillnad</dt>
-                        <dd className="font-semibold text-slate-800">{resort.maxAlt - resort.minAlt} m</dd>
-                      </div>
-                      {allAirports.map((a, i) => (
-                        <div key={`${a.name}-${i}`} className="flex items-center justify-between border-b border-slate-100 py-2 last:border-0">
-                          <dt className="text-slate-500">{allAirports.length > 1 ? `Flygplats ${i + 1}` : 'Flygplats'}</dt>
-                          <dd className="font-semibold text-slate-800">{a.name} · {a.transferMin} min</dd>
+                  {/* Resa & praktiskt — transfertid, flygplats(er), liftar, säsong om satt */}
+                  <div>
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Resa &amp; praktiskt</h3>
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      {travelTiles.map((t) => (
+                        <div key={t.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            <t.icon className="h-3 w-3" /> {t.label}
+                          </div>
+                          <div className="mt-0.5 text-sm font-bold text-slate-800">{t.value}</div>
                         </div>
                       ))}
-                    </dl>
+                    </div>
                   </div>
                 </div>
 

@@ -58,6 +58,28 @@ body {
   cursor: pointer;
 }
 
+/* Diskret scrollbar — används i den expanderade ortmodalen (och kan återanvändas där annars).
+   Tunn, transparent bana, halvtransparent thumb som mörknar lite vid hover, istället för
+   webbläsarens fulla, grå/vita standard-scrollbar. */
+.scrollbar-thin {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent; /* Firefox: thumb, track */
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.35);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.55);
+}
+
 /* Mapbox popup tweaks */
 .mapboxgl-popup-content {
   border-radius: 12px;
