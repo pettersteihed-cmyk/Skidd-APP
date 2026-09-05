@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2, ChevronDown,
-  Ticket, BedDouble, Car, Package, ArrowUpRight, TrendingDown, Calendar,
+  Ticket, BedDouble, Car, Package, ArrowUpRight, Calendar,
 } from 'lucide-react';
 import type { Resort } from '@/types';
+import MountainProfile from './MountainProfile';
 
 interface ResortModalProps {
   resort: Resort | null;
@@ -91,13 +92,14 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
   ];
 
   // Pistfördelning — faller tillbaka på jämn fördelning om fältet saknas (bör inte hända, alla 15
-  // orter har det ifyllt, men skyddar mot framtida orter utan data).
+  // orter har det ifyllt, men skyddar mot framtida orter utan data). Visas som km per färg (av
+  // total pistlängd), inte procent, i en punktlista.
   const pc = resort.pisteColors ?? { green: 25, blue: 25, red: 25, black: 25 };
   const pisteSegments = [
-    { key: 'green', label: 'Grön', value: pc.green, bar: 'bg-green-500', dot: 'bg-green-500' },
-    { key: 'blue', label: 'Blå', value: pc.blue, bar: 'bg-blue-500', dot: 'bg-blue-500' },
-    { key: 'red', label: 'Röd', value: pc.red, bar: 'bg-red-500', dot: 'bg-red-500' },
-    { key: 'black', label: 'Svart', value: pc.black, bar: 'bg-slate-900', dot: 'bg-slate-900' },
+    { key: 'green', label: 'Grön', km: Math.round((resort.pisteKm * pc.green) / 100), dot: 'bg-green-500' },
+    { key: 'blue', label: 'Blå', km: Math.round((resort.pisteKm * pc.blue) / 100), dot: 'bg-blue-500' },
+    { key: 'red', label: 'Röd', km: Math.round((resort.pisteKm * pc.red) / 100), dot: 'bg-red-500' },
+    { key: 'black', label: 'Svart', km: Math.round((resort.pisteKm * pc.black) / 100), dot: 'bg-slate-900' },
   ];
 
   // Den första flygplatsen är alltid resort.airport/transferMin; additionalAirports (om någon ort
@@ -107,16 +109,8 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     ...(resort.additionalAirports ?? []),
   ];
 
-  // "Skidsystemet" (expanderat läge) — terrängrelaterad info: höjder + pistlängd. Fallhöjd räknas
-  // ut från maxAlt/minAlt (finns inget eget fält för det).
-  const terrainTiles = [
-    { icon: Mountain, label: 'Tophöjd', value: `${resort.maxAlt} m` },
-    { icon: ArrowDown, label: 'Dalhöjd', value: `${resort.minAlt} m` },
-    { icon: TrendingDown, label: 'Fallhöjd', value: `${resort.maxAlt - resort.minAlt} m` },
-    { icon: Ruler, label: 'Pistlängd', value: `${resort.pisteKm} km` },
-  ];
-
-  // "Resa & praktiskt" (expanderat läge) — logistik: transfertid, flygplats(er), liftar, säsong.
+  // "Resa & praktiskt" (expanderat läge) — logistik: transfertid, flygplats(er), säsong.
+  // (Liftar/pistlängd hör tematiskt till "Skidsystemet" istället, se MountainProfile nedan.)
   const travelTiles = [
     { icon: Clock, label: 'Transfertid', value: `${resort.transferMin} min` },
     ...allAirports.map((a, i) => ({
@@ -124,7 +118,6 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
       label: allAirports.length > 1 ? `Flygplats ${i + 1}` : 'Flygplats',
       value: `${a.name} · ${a.transferMin} min`,
     })),
-    { icon: Cable, label: 'Liftar', value: `${resort.lifts}` },
     ...(resort.season ? [{ icon: Calendar, label: 'Säsong', value: resort.season }] : []),
   ];
 
@@ -264,37 +257,17 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                     </div>
                   )}
 
-                  {/* Skidsystemet — höjder/pistlängd, med pistfördelningen direkt under eftersom den hör ihop tematiskt */}
+                  {/* Skidsystemet — pistfördelning (km per färg), liftar/pistlängd, topp-/dal-/
+                      fallhöjd och bergssiluetten samlade i EN rad som en sammanhållen grupp */}
                   <div className="mb-5">
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Skidsystemet</h3>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {terrainTiles.map((t) => (
-                        <div key={t.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                            <t.icon className="h-3 w-3" /> {t.label}
-                          </div>
-                          <div className="mt-0.5 text-sm font-bold text-slate-800">{t.value}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-4">
-                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Pistfördelning</div>
-                      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                        {pisteSegments.map((seg) => (
-                          seg.value > 0 && (
-                            <div key={seg.key} className={seg.bar} style={{ width: `${seg.value}%` }} title={`${seg.label} ${seg.value}%`} />
-                          )
-                        ))}
-                      </div>
-                      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
-                        {pisteSegments.map((seg) => (
-                          <span key={seg.key} className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <span className={`h-2 w-2 rounded-full ${seg.dot}`} />
-                            {seg.label} {seg.value}%
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    <MountainProfile
+                      maxAlt={resort.maxAlt}
+                      minAlt={resort.minAlt}
+                      lifts={resort.lifts}
+                      pisteKm={resort.pisteKm}
+                      pisteSegments={pisteSegments}
+                    />
                   </div>
 
                   {/* Resa & praktiskt — transfertid, flygplats(er), liftar, säsong om satt */}
