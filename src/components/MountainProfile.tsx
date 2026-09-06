@@ -89,8 +89,17 @@ export default function MountainProfile({ maxAlt, minAlt, lifts, pisteKm, pisteS
           känns balanserad. preserveAspectRatio="none" krävs eftersom viewBox-proportionerna
           (160×100) annars skulle skala om HELA grafiken proportionellt vid bredd/höjd-ändringar
           istället för att tillåta oberoende x/y-skalning; vectorEffect håller strecket lika tjockt
-          trots det. */}
-      <svg viewBox="0 0 160 100" preserveAspectRatio="none" className="mr-6 h-[132px] w-[173px] shrink-0" aria-hidden="true">
+          trots det. -translate-x-[50px] flyttar illustrationen ytterligare 50px åt vänster via
+          transform (ren visuell förskjutning) istället för att öka mr-6 — en större margin skulle
+          ändra hur justify-between fördelar det lediga utrymmet mellan ALLA fyra sektionerna och
+          därmed knuffa ihop pistinfo/pistfördelning/höjdinfo, medan transform inte påverkar
+          elementets layout-box och därför lämnar de andra sektionernas positioner orörda. */}
+      <svg
+        viewBox="0 0 160 100"
+        preserveAspectRatio="none"
+        className="mr-6 h-[132px] w-[173px] shrink-0 -translate-x-[50px]"
+        aria-hidden="true"
+      >
         <path
           d="M0,96 L22,93 L40,72 L54,82 L115,26 L156,62"
           fill="none"
