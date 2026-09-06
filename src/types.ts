@@ -10,6 +10,15 @@ export interface Resort {
   minAlt: number;
   pisteKm: number;
   lifts: number;
+  /**
+   * Uppdelning av liftantalet per typ, till "Liftar"-kolumnen i Skidsystemet. Alla fyra är
+   * valfria/oberoende av varandra — saknas ett fält för en ort visas "–" i UI:t istället för att
+   * dölja raden eller krascha. Behöver inte summera till `lifts`.
+   */
+  liftsGondola?: number;
+  liftsChairlift?: number;
+  liftsDragLift?: number;
+  liftsOther?: number;
   airport: string;
   transferMin: number;
   train: boolean;

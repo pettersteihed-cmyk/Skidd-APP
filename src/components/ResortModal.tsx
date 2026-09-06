@@ -284,6 +284,10 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                       pisteKm={resort.pisteKm}
                       pisteSegments={pisteSegments}
                       pisteMapPdfUrl={resort.pisteMapPdfUrl}
+                      liftsGondola={resort.liftsGondola}
+                      liftsChairlift={resort.liftsChairlift}
+                      liftsDragLift={resort.liftsDragLift}
+                      liftsOther={resort.liftsOther}
                     />
                   </div>
 
