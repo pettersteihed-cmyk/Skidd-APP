@@ -127,7 +127,7 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
   // ifyllt för orten) — annars göms den helt, ingen tom/trasig ruta.
   const airportTiles = allAirports.slice(0, 2).map((a, i) => ({
     key: `airport-${i}`,
-    airportLabel: i === 0 ? 'Närmaste flygplats' : 'Näst närmaste flygplats',
+    airportLabel: 'Flyg hit',
     airportValue: a.name,
     transferValue: formatTransferTime(a.transferMin),
   }));
@@ -283,26 +283,39 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                       lifts={resort.lifts}
                       pisteKm={resort.pisteKm}
                       pisteSegments={pisteSegments}
+                      pisteMapPdfUrl={resort.pisteMapPdfUrl}
                     />
                   </div>
 
-                  {/* Resa & praktiskt — flygplats(er) med transfertid, tåg, säsong om satt */}
+                  {/* Resa & praktiskt — flygplats(er) med transfertid, tåg, säsong om satt.
+                      Rutorna är olika breda från sm och uppåt: Ruta 3 (tåg) är 40px smalare, och
+                      de 20px den frigör per sida läggs på Ruta 1/2 (flygplatsrutorna) — annars
+                      radbryter "NÄST NÄRMASTE FLYGPLATS" i Ruta 2. Bredderna sätts av
+                      .travel-tiles-grid i index.css (vanlig CSS, se kommentar där för varför inte
+                      en Tailwind arbitrary-value-klass användes). */}
                   <div>
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Resa &amp; praktiskt</h3>
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    <div className="travel-tiles-grid grid grid-cols-2 gap-2.5">
                       {airportTiles.map((t) => (
                         <div key={t.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          {/* flex-1/min-w-0 på vänsterkolumnen (istället för justify-between)
+                              gör att den faktiskt växer in i utrymmet Ruta 1/2 fick extra bredd
+                              från — annars hade den bredare rutan bara blivit mer TOMT MELLANRUM
+                              mellan kolumnerna (justify-between sprider bara space BETWEEN barnen,
+                              stretchar dem inte), och "NÄST NÄRMASTE FLYGPLATS" hade fortsatt
+                              radbryta trots den bredare rutan. shrink-0 på transfertid-kolumnen
+                              håller den kvar i sin naturliga bredd. */}
+                          <div className="flex items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
                                 <Plane className="h-3 w-3" /> {t.airportLabel}
                               </div>
                               <div className="mt-0.5 text-sm font-bold text-slate-800">{t.airportValue}</div>
                             </div>
                             {/* items-end högerjusterar värdet under så dess högerkant linjerar
                                 med TRANSFERTID-etikettens högerkant ovanför. */}
-                            <div className="flex flex-col items-end">
-                              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                            <div className="flex shrink-0 flex-col items-end">
+                              <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
                                 <Clock className="h-3 w-3" /> Transfertid
                               </div>
                               <div className="mt-0.5 text-sm font-bold text-slate-800">{t.transferValue}</div>
@@ -312,7 +325,7 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                       ))}
                       {otherTiles.map((t) => (
                         <div key={t.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-slate-400">
                             <t.icon className="h-3 w-3" /> {t.label}
                           </div>
                           <div className="mt-0.5 text-sm font-bold text-slate-800">{t.value}</div>

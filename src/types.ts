@@ -45,6 +45,11 @@ export interface Resort {
    * "Praktisk info" listar alla. Ingen ort har detta ifyllt ännu.
    */
   additionalAirports?: { name: string; transferMin: number }[];
+  /**
+   * Länk till ortens officiella pistkarta (PDF eller webbsida) — visas som "PISTKARTA"-länk i
+   * Skidsystemet-sektionen. Just nu platshållar-URL:er för alla orter tills riktiga länkar finns.
+   */
+  pisteMapPdfUrl?: string;
 }
 
 export type PriceLevel = '$' | '$$' | '$$$' | '$$$$';

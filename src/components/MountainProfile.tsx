@@ -1,3 +1,5 @@
+import { Layers } from 'lucide-react';
+
 interface PisteSegment {
   key: string;
   label: string;
@@ -11,6 +13,7 @@ interface MountainProfileProps {
   lifts: number;
   pisteKm: number;
   pisteSegments: PisteSegment[];
+  pisteMapPdfUrl?: string;
   className?: string;
 }
 
@@ -33,21 +36,40 @@ interface MountainProfileProps {
  * avstånd till Affiliate Hub-kolumnen än om den låg helt flush med radens egen högerkant.
  * Tänkt att återanvändas t.ex. i kompakt läge senare, därför en egen liten komponent.
  */
-export default function MountainProfile({ maxAlt, minAlt, lifts, pisteKm, pisteSegments, className = '' }: MountainProfileProps) {
+export default function MountainProfile({ maxAlt, minAlt, lifts, pisteKm, pisteSegments, pisteMapPdfUrl, className = '' }: MountainProfileProps) {
   const fallhojd = maxAlt - minAlt;
 
   return (
     <div className={`flex w-full items-stretch justify-between gap-4 ${className}`}>
-      {/* Pistinfo */}
-      <div className="flex flex-col gap-4 py-1">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Liftar</div>
-          <div className="text-sm font-bold text-slate-800">{lifts}</div>
+      {/* Pistinfo — justify-between (istället för fast gap) på ytterkolumnen håller Liftar/
+          Pistlängd som en egen topp-grupp med sitt naturliga gap-4-avstånd, medan Pistkarta-länken
+          som ANDRA/sista flex-barn trycks hela vägen ner till kolumnens (stretchade) underkant —
+          samma nivå som "Svart"-raden i Pistfördelningen bredvid, som också landar vid
+          kolumnhöjdens botten via sin egen justify-between+stretch. */}
+      <div className="flex flex-col justify-between py-1">
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Liftar</div>
+            <div className="text-sm font-bold text-slate-800">{lifts}</div>
+          </div>
+          <div>
+            <div className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Pistlängd</div>
+            <div className="text-sm font-bold text-slate-800">{pisteKm} km</div>
+          </div>
         </div>
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Pistlängd</div>
-          <div className="text-sm font-bold text-slate-800">{pisteKm} km</div>
-        </div>
+        {/* sky-600 + Layers-ikon (samma ton/ikon som "Visa pistkarta" i Sidebar.tsx) signalerar
+            tydligt klickbar länk snarare än ännu en gråmärkt datapunkt; ingen underline, 14px
+            (upp 2px från etiketternas 12px) och font-bold (upp från font-semibold) för egen vikt. */}
+        {pisteMapPdfUrl && (
+          <a
+            href={pisteMapPdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[14px] font-bold uppercase tracking-wide text-sky-600 transition hover:text-sky-700"
+          >
+            <Layers className="h-3 w-3" /> Pistkarta
+          </a>
+        )}
       </div>
 
       {/* Pistfördelning — punktlista med km per färg. justify-between (istället för fast gap)
@@ -69,15 +91,15 @@ export default function MountainProfile({ maxAlt, minAlt, lifts, pisteKm, pisteS
       {/* Höjdinfo */}
       <div className="flex flex-col gap-4 py-1">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Topphöjd</div>
+          <div className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Topphöjd</div>
           <div className="text-sm font-bold text-slate-800">{maxAlt} m</div>
         </div>
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Fallhöjd</div>
+          <div className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Fallhöjd</div>
           <div className="text-sm font-bold text-slate-800">{fallhojd} m</div>
         </div>
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Dalhöjd</div>
+          <div className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">Dalhöjd</div>
           <div className="text-sm font-bold text-slate-800">{minAlt} m</div>
         </div>
       </div>
@@ -85,19 +107,20 @@ export default function MountainProfile({ maxAlt, minAlt, lifts, pisteKm, pisteS
       {/* Bergskam — en enda konturlinje (stroke, ingen fill): platt start, diagonal stigning, liten
           sadelpunkt ~1/3 in, jämn lutning upp till toppen, kortare nedgång som slutar halvvägs.
           w-full + justify-between på föräldern trycker den ut mot högerkanten. Bredden (w-[173px])
-          och höjden (h-[132px]) matchar höjdinfo-kolumnens naturliga renderade höjd så helheten
-          känns balanserad. preserveAspectRatio="none" krävs eftersom viewBox-proportionerna
-          (160×100) annars skulle skala om HELA grafiken proportionellt vid bredd/höjd-ändringar
-          istället för att tillåta oberoende x/y-skalning; vectorEffect håller strecket lika tjockt
-          trots det. -translate-x-[50px] flyttar illustrationen ytterligare 50px åt vänster via
-          transform (ren visuell förskjutning) istället för att öka mr-6 — en större margin skulle
-          ändra hur justify-between fördelar det lediga utrymmet mellan ALLA fyra sektionerna och
-          därmed knuffa ihop pistinfo/pistfördelning/höjdinfo, medan transform inte påverkar
-          elementets layout-box och därför lämnar de andra sektionernas positioner orörda. */}
+          och höjden (h-[154px]) matchar den tillagda Pistkarta-länken gjorde pistinfo-kolumnen till
+          den nya högsta (154px, upp från 132px) — så helheten fortsatt känns balanserad.
+          preserveAspectRatio="none" krävs eftersom viewBox-proportionerna (160×100) annars skulle
+          skala om HELA grafiken proportionellt vid bredd/höjd-ändringar istället för att tillåta
+          oberoende x/y-skalning; vectorEffect håller strecket lika tjockt trots det.
+          -translate-x-[50px] flyttar illustrationen ytterligare 50px åt vänster via transform (ren
+          visuell förskjutning) istället för att öka mr-6 — en större margin skulle ändra hur
+          justify-between fördelar det lediga utrymmet mellan ALLA fyra sektionerna och därmed
+          knuffa ihop pistinfo/pistfördelning/höjdinfo, medan transform inte påverkar elementets
+          layout-box och därför lämnar de andra sektionernas positioner orörda. */}
       <svg
         viewBox="0 0 160 100"
         preserveAspectRatio="none"
-        className="mr-6 h-[132px] w-[173px] shrink-0 -translate-x-[50px]"
+        className="mr-6 h-[154px] w-[173px] shrink-0 -translate-x-[50px]"
         aria-hidden="true"
       >
         <path
