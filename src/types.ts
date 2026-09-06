@@ -1,5 +1,8 @@
 export interface Resort {
   name: string;
+  /** Land — tillagt inför framtida expansion till fler länder i Alperna (Schweiz, Österrike,
+   * Italien m.fl.). Alla nuvarande orter är "Frankrike". Driver landfiltret i sidopanelen. */
+  country: string;
   region: string;
   lat: number;
   lng: number;
@@ -60,4 +63,6 @@ export interface Filters {
   trainOnly: boolean;
   minPisteKm: number;
   search: string;
+  /** Valda länder — tom array = inget landfilter aktivt (visa alla), samma mönster som priceLevels. */
+  countries: string[];
 }
