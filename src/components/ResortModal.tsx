@@ -337,9 +337,9 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
 
                 {/* Höger kolumn — Affiliate Hub. Ingen egen scroll/positionering längre; den flyter
                     och scrollar med resten av raden precis som en vanlig sidopanel i innehållet. */}
-                <div className="rounded-2xl bg-gradient-to-b from-blue-950 to-slate-900 p-5">
-                  <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-blue-300">Affiliate Hub</h3>
-                  <p className="mb-4 text-[11px] text-blue-100/60">Boka det du behöver för resan</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-100 p-5">
+                  <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-blue-700">Affiliate Hub</h3>
+                  <p className="mb-4 text-[11px] text-slate-500">Boka det du behöver för resan</p>
                   <div className="space-y-2.5">
                     {affiliateButtons.map((b) => (
                       <a
@@ -347,11 +347,11 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                         href={b.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group flex items-center gap-2.5 rounded-xl bg-white/10 px-3.5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                        className="group flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
                       >
-                        <b.icon className="h-4 w-4 shrink-0 text-blue-300" />
+                        <b.icon className="h-4 w-4 shrink-0 text-blue-600" />
                         <span className="flex-1">{b.label}</span>
-                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-blue-300/70 transition group-hover:text-white" />
+                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition group-hover:text-blue-600" />
                       </a>
                     ))}
                   </div>
