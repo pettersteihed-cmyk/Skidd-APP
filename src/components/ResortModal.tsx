@@ -109,16 +109,32 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     ...(resort.additionalAirports ?? []),
   ];
 
-  // "Resa & praktiskt" (expanderat läge) — logistik: transfertid, flygplats(er), säsong.
+  // "Resa & praktiskt" (expanderat läge) — logistik: flygplats(er) med transfertid, tåg, säsong.
   // (Liftar/pistlängd hör tematiskt till "Skidsystemet" istället, se MountainProfile nedan.)
-  const travelTiles = [
-    { icon: Clock, label: 'Transfertid', value: `${resort.transferMin} min` },
-    ...allAirports.map((a, i) => ({
-      icon: Plane,
-      label: allAirports.length > 1 ? `Flygplats ${i + 1}` : 'Flygplats',
-      value: `${a.name} · ${a.transferMin} min`,
-    })),
-    ...(resort.season ? [{ icon: Calendar, label: 'Säsong', value: resort.season }] : []),
+  //
+  // Transfertid som "X h Y min" över 60 minuter (t.ex. 170 -> "2 h 50 min"), annars bara "X min"
+  // som förut. Hela timmar utan rest (t.ex. 120) blir "2 h" utan onödigt "0 min".
+  const formatTransferTime = (minutes: number) => {
+    if (minutes < 60) return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m === 0 ? `${h} h` : `${h} h ${m} min`;
+  };
+
+  // Flygplatsrutorna (Ruta 1/2) är tvåkolumniga: flygplatsnamn till vänster, transfertid till
+  // höger, i samma ruta — istället för separata Transfertid-/Flygplats-rutor som förut. Ruta 2
+  // (Näst närmaste flygplats) byggs bara om allAirports[1] finns (dvs. additionalAirports är
+  // ifyllt för orten) — annars göms den helt, ingen tom/trasig ruta.
+  const airportTiles = allAirports.slice(0, 2).map((a, i) => ({
+    key: `airport-${i}`,
+    airportLabel: i === 0 ? 'Närmaste flygplats' : 'Näst närmaste flygplats',
+    airportValue: a.name,
+    transferValue: formatTransferTime(a.transferMin),
+  }));
+
+  const otherTiles = [
+    { key: 'train', icon: Train, label: 'Ort tillgänglig med tåg', value: resort.train ? 'Ja' : 'Nej' },
+    ...(resort.season ? [{ key: 'season', icon: Calendar, label: 'Säsong', value: resort.season }] : []),
   ];
 
   // Header-innehållet (bild/gradient, namn, badge) delas mellan kompakt läge, det normala
@@ -270,12 +286,32 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                     />
                   </div>
 
-                  {/* Resa & praktiskt — transfertid, flygplats(er), liftar, säsong om satt */}
+                  {/* Resa & praktiskt — flygplats(er) med transfertid, tåg, säsong om satt */}
                   <div>
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Resa &amp; praktiskt</h3>
                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                      {travelTiles.map((t) => (
-                        <div key={t.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                      {airportTiles.map((t) => (
+                        <div key={t.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                <Plane className="h-3 w-3" /> {t.airportLabel}
+                              </div>
+                              <div className="mt-0.5 text-sm font-bold text-slate-800">{t.airportValue}</div>
+                            </div>
+                            {/* items-end högerjusterar värdet under så dess högerkant linjerar
+                                med TRANSFERTID-etikettens högerkant ovanför. */}
+                            <div className="flex flex-col items-end">
+                              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                <Clock className="h-3 w-3" /> Transfertid
+                              </div>
+                              <div className="mt-0.5 text-sm font-bold text-slate-800">{t.transferValue}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {otherTiles.map((t) => (
+                        <div key={t.key} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
                           <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                             <t.icon className="h-3 w-3" /> {t.label}
                           </div>
