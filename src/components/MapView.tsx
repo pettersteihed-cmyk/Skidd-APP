@@ -35,6 +35,11 @@ const RESORT_LAYER_IDS = ['clusters', 'cluster-count', 'unclustered-point'];
 const PIN_COLOR_DEFAULT = '#1d4ed8';
 const PIN_COLOR_ACTIVE = '#dc2626';
 
+// Branthetslager (pilot: Alpe d'Huez) — förberäknade tiles från Copernicus GLO-30,
+// hostade på Cloudflare R2. Se memory/pipeline-dokumentationen för hur tiles genereras.
+const SLOPE_TILE_URL = 'https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/slope-tiles/alpe-dhuez/{z}/{x}/{y}.png';
+const SLOPE_ATTRIBUTION = 'produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved';
+
 // Baskartans terräng-, landtäcke- och vattenlager som ska färgsättas om (outdoors-v12).
 // Vägar, byggnader, admin-gränser och opensnowmap-layer rörs inte. Terräng/landtäcke
 // gråtonas, vatten får en egen lågmäld blå kulör — se transform-fältet.
@@ -63,6 +68,8 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   // 2D är standardläget varje gång man navigerar in i kartvyn — 3D är en manuell toggle (knappen
   // nedan), inte något som ska aktiveras automatiskt.
   const [is3D, setIs3D] = useState(false);
+  // Branthetslagret är avstängt som standard, samma mönster som OpenSnowMap-lagret.
+  const [showSlopeLayer, setShowSlopeLayer] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const hiddenLayersRef = useRef<string[]>([]);
@@ -71,11 +78,13 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const onSelectRef = useRef(onSelect);
   const isLandingRef = useRef(isLanding);
   const showSnowMapRef = useRef(showSnowMap);
+  const showSlopeLayerRef = useRef(showSlopeLayer);
   resortsRef.current = resorts;
   activeIdRef.current = activeId;
   onSelectRef.current = onSelect;
   isLandingRef.current = isLanding;
   showSnowMapRef.current = showSnowMap;
+  showSlopeLayerRef.current = showSlopeLayer;
 
   // Karta-initialisering
   useEffect(() => {
@@ -149,6 +158,29 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
             ],
           },
         });
+        map.addSource('slope-alpe-dhuez', {
+          type: 'raster',
+          tiles: [SLOPE_TILE_URL],
+          tileSize: 256,
+          minzoom: 8,
+          // Tiles genereras bara t.o.m. z13 (se pipeline) — Mapbox overzoomar
+          // automatiskt (skalar upp z13-tiles) för högre zoom istället för att
+          // begära icke-existerande z14/z15-tiles.
+          maxzoom: 13,
+          attribution: SLOPE_ATTRIBUTION,
+        });
+        map.addLayer({
+          id: 'slope-layer',
+          type: 'raster',
+          source: 'slope-alpe-dhuez',
+          minzoom: 8,
+          layout: {
+            visibility: showSlopeLayerRef.current ? 'visible' : 'none',
+          },
+          paint: {
+            'raster-opacity': 0.7,
+          },
+        });
         // Dölj etiketter/vägar direkt om startsidan är aktiv vid laddning
         if (isLandingRef.current) {
           applyLayerVisibility(map, true, hiddenLayersRef);
@@ -203,6 +235,13 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     if (!map || !map.getSource('opensnowmap')) return;
     map.setLayoutProperty('opensnowmap-layer', 'visibility', showSnowMap ? 'visible' : 'none');
   }, [showSnowMap]);
+
+  // Slå av/på branthetslagret
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource('slope-alpe-dhuez')) return;
+    map.setLayoutProperty('slope-layer', 'visibility', showSlopeLayer ? 'visible' : 'none');
+  }, [showSlopeLayer]);
 
   // Fly to target när ort väljs
   useEffect(() => {
@@ -276,6 +315,18 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
           className="absolute right-4 top-4 z-10 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-md transition hover:bg-slate-50"
         >
           {is3D ? '3D' : '2D'}
+        </button>
+      )}
+      {!isLanding && (
+        <button
+          onClick={() => setShowSlopeLayer((v) => !v)}
+          aria-label={showSlopeLayer ? 'Dölj branthetslager' : 'Visa branthetslager'}
+          aria-pressed={showSlopeLayer}
+          className={`absolute right-4 top-16 z-10 rounded-lg px-3 py-2 text-xs font-semibold shadow-md transition ${
+            showSlopeLayer ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          Branthet
         </button>
       )}
     </>
