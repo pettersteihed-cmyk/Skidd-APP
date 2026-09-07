@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Train, Snowflake, Clock, Tag, Layers, ChevronDown } from 'lucide-react';
+import { Search, Train, Snowflake, Clock, Tag, Layers, ChevronDown, Globe } from 'lucide-react';
 import type { Filters, PriceLevel, Resort } from '@/types';
 
 interface SidebarProps {
@@ -49,8 +49,12 @@ const PRICE_LEVELS: PriceLevel[] = ['$', '$$', '$$$', '$$$$'];
 export default function Sidebar({ filters, setFilters, resorts, allResorts, activeId, onSelect, showSnowMap, onToggleSnowMap }: SidebarProps) {
   const maxTransferRange = Math.max(...allResorts.map((r) => r.transferMin));
   const maxPisteRange = Math.max(...allResorts.map((r) => r.pisteKm));
+  // Länder härledda från datan (inte hårdkodade) — filtret följer automatiskt med om/när fler
+  // länder än Frankrike läggs till i resorts.ts.
+  const availableCountries = Array.from(new Set(allResorts.map((r) => r.country))).sort();
 
   const [open, setOpen] = useState({
+    land: true,
     transfertid: true,
     pris: true,
     egenskaper: true,
@@ -69,6 +73,14 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
     });
   };
 
+  const toggleCountry = (country: string) => {
+    const has = filters.countries.includes(country);
+    setFilters({
+      ...filters,
+      countries: has ? filters.countries.filter((c) => c !== country) : [...filters.countries, country],
+    });
+  };
+
   const clearAll = () => {
     setFilters({
       maxTransfer: maxTransferRange,
@@ -76,6 +88,7 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
       trainOnly: false,
       minPisteKm: 0,
       search: '',
+      countries: [],
     });
   };
 
@@ -84,7 +97,8 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
     filters.priceLevels.length > 0 ||
     filters.trainOnly ||
     filters.minPisteKm > 0 ||
-    filters.search.trim() !== '';
+    filters.search.trim() !== '' ||
+    filters.countries.length > 0;
 
   return (
     <aside className="flex h-full w-full flex-col bg-white">
@@ -117,6 +131,34 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
             />
           </div>
         </div>
+
+        {/* Land — kryssrutelista, byggd generiskt från de unika länder som faktiskt finns i datan
+            (inte hårdkodat till "Frankrike") så nya länder dyker upp automatiskt i listan så fort
+            de läggs till i resorts.ts, utan kodändring här. */}
+        <AccordionSection title="Land" isOpen={open.land} onToggle={() => toggle('land')}>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-2">
+            <Globe className="h-3 w-3" /> Välj ett eller flera länder
+          </div>
+          <div className="space-y-1.5">
+            {availableCountries.map((country) => {
+              const checked = filters.countries.includes(country);
+              return (
+                <label
+                  key={country}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleCountry(country)}
+                    className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+                  />
+                  {country}
+                </label>
+              );
+            })}
+          </div>
+        </AccordionSection>
 
         {/* Transfertid */}
         <AccordionSection title="Transfertid" isOpen={open.transfertid} onToggle={() => toggle('transfertid')}>

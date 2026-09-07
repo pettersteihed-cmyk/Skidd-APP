@@ -1,5 +1,8 @@
 export interface Resort {
   name: string;
+  /** Land — tillagt inför framtida expansion till fler länder i Alperna (Schweiz, Österrike,
+   * Italien m.fl.). Alla nuvarande orter är "Frankrike". Driver landfiltret i sidopanelen. */
+  country: string;
   region: string;
   lat: number;
   lng: number;
@@ -7,6 +10,15 @@ export interface Resort {
   minAlt: number;
   pisteKm: number;
   lifts: number;
+  /**
+   * Uppdelning av liftantalet per typ, till "Liftar"-kolumnen i Skidsystemet. Alla fyra är
+   * valfria/oberoende av varandra — saknas ett fält för en ort visas "–" i UI:t istället för att
+   * dölja raden eller krascha. Behöver inte summera till `lifts`.
+   */
+  liftsGondola?: number;
+  liftsChairlift?: number;
+  liftsDragLift?: number;
+  liftsOther?: number;
   airport: string;
   transferMin: number;
   train: boolean;
@@ -60,4 +72,6 @@ export interface Filters {
   trainOnly: boolean;
   minPisteKm: number;
   search: string;
+  /** Valda länder — tom array = inget landfilter aktivt (visa alla), samma mönster som priceLevels. */
+  countries: string[];
 }

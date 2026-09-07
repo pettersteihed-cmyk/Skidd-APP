@@ -16,6 +16,7 @@ const DEFAULT_FILTERS: Filters = {
   trainOnly: false,
   minPisteKm: 0,
   search: '',
+  countries: [],
 };
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
     return RESORTS.filter((r) => {
       if (r.transferMin > filters.maxTransfer) return false;
       if (filters.priceLevels.length > 0 && !filters.priceLevels.includes(r.price)) return false;
+      if (filters.countries.length > 0 && !filters.countries.includes(r.country)) return false;
       if (filters.trainOnly && !r.train) return false;
       if (r.pisteKm < filters.minPisteKm) return false;
       if (q && !(`${r.name} ${r.region}`.toLowerCase().includes(q))) return false;
