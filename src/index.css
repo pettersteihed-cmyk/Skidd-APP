@@ -2,9 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* overflow: hidden här — App.tsx:s rotelement är redan h-screen/w-screen/overflow-hidden och all
+   scrollning i appen sker inuti egna overflow-y-auto-ytor (t.ex. .scrollbar-thin i ResortModal).
+   Sidan (html/body) ska ALDRIG själv behöva scrolla, men Windows/Chrome kan ändå visa en egen,
+   ostylad scrollbar vid fönstrets högerkant om body:s innehåll råkar bli en enda pixel högre än
+   viewporten (vanligt avrundningsfel med 100vh/h-screen) — den scrollbaren är det man ser som ett
+   "vitt spår" utanför själva modalkortet, inte något i .scrollbar-thin-stylingen. Explicit
+   overflow: hidden här stänger av den möjligheten helt. */
 html, body, #root {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
@@ -56,6 +64,54 @@ body {
   border: 3px solid white;
   box-shadow: 0 1px 4px rgba(37, 99, 235, 0.4);
   cursor: pointer;
+}
+
+/* Diskret scrollbar — används i den expanderade ortmodalen (och kan återanvändas där annars).
+   Ingen synlig bana (track) alls — bara ett halvtransparent grått handtag (thumb) som mörknar
+   lite vid hover — istället för webbläsarens fulla, vita/grå standard-scrollbar. background:
+   none + border/box-shadow: none på track-pseudoelementet är medvetet överflödigt/defensivt:
+   vissa Chromium-versioner kan annars rendera en svag kant/skugga för track även när dess
+   background är transparent. */
+.scrollbar-thin {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent; /* Firefox: thumb, track */
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.3);
+  border: none;
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.5);
+}
+
+/* "Resa & praktiskt"-rutorna (ResortModal.tsx) — Ruta 3 (tåg) är 40px smalare än en jämn
+   tredjedel från sm och uppåt; de 20px per sida det frigör läggs på Ruta 1/2 (flygplatsrutorna)
+   så "NÄST NÄRMASTE FLYGPLATS" får plats på en rad istället för att radbryta. Skriven som vanlig
+   CSS istället för Tailwinds grid-cols-[...]-klass av två skäl: (1) calc() FÅR INTE innehålla
+   fr-enheter (ogiltigt enligt CSS Values-specen — "fr" är inte en <length>) så calc(1fr±Npx)
+   ignoreras tyst av webbläsaren och faller tillbaka på grid-cols-2; (2) även om man skriver om
+   det utan fr blir Tailwinds arbitrary-value-escaping av +/-/()-tecken i klassnamnet en ogiltig
+   CSS-selector som också ignoreras tyst. Lösningen är att räkna ut breddens gap-andel för hand
+   i procent i stället för fr: (100% - 2×gap) delat på tre ger en jämn tredjedel av det
+   tillgängliga utrymmet (gap-2.5 = 10px, två mellanrum mellan tre rutor = 20px totalt), och
+   +/-20/40px läggs på/dras från den. */
+@media (min-width: 640px) {
+  .travel-tiles-grid {
+    grid-template-columns:
+      calc((100% - 20px) / 3 + 20px)
+      calc((100% - 20px) / 3 + 20px)
+      calc((100% - 20px) / 3 - 40px);
+  }
 }
 
 /* Mapbox popup tweaks */
