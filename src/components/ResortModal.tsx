@@ -274,16 +274,32 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                   )}
 
                   {/* Skidsystemet — pistfördelning (km per färg), liftar/pistlängd, topp-/dal-/
-                      fallhöjd och bergssiluetten samlade i EN rad som en sammanhållen grupp */}
+                      fallhöjd och bergssiluetten samlade i EN rad som en sammanhållen grupp.
+                      Rubriken bär nu Pistkarta-länken (hela texten är klickbar, sky-600, ingen
+                      understrykning) istället för att MountainProfile hade en egen länk längst
+                      ner i Pist-kolumnen — mer upptäckbar, och frigör utrymme i kolumnen. Faller
+                      tillbaka på vanlig, icke-klickbar rubriktext om orten saknar pisteMapPdfUrl. */}
                   <div className="mb-5">
-                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Skidsystemet</h3>
+                    <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                      {resort.pisteMapPdfUrl ? (
+                        <a
+                          href={resort.pisteMapPdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sky-600 transition hover:text-sky-700"
+                        >
+                          Skidsystemet – Pistkarta
+                        </a>
+                      ) : (
+                        'Skidsystemet'
+                      )}
+                    </h3>
                     <MountainProfile
                       maxAlt={resort.maxAlt}
                       minAlt={resort.minAlt}
                       lifts={resort.lifts}
                       pisteKm={resort.pisteKm}
                       pisteSegments={pisteSegments}
-                      pisteMapPdfUrl={resort.pisteMapPdfUrl}
                       liftsGondola={resort.liftsGondola}
                       liftsChairlift={resort.liftsChairlift}
                       liftsDragLift={resort.liftsDragLift}
