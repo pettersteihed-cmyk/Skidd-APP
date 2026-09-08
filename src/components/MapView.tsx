@@ -306,7 +306,13 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
                     Outdoors
                   </button>
                   <button
-                    onClick={() => setMapStyle('satellite')}
+                    onClick={() => {
+                      // Satellitstilen är begränsad till 2D — går man dit medan 3D är
+                      // aktivt växlas kameran automatiskt tillbaka till pitch/bearing 0
+                      // samtidigt (is3D-effekten längre ner sköter själva easeTo:n).
+                      setMapStyle('satellite');
+                      setIs3D(false);
+                    }}
                     aria-pressed={mapStyle === 'satellite'}
                     className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${
                       mapStyle === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -318,7 +324,13 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
               </div>
               <CornerToggleRow label="Pistkarta (OpenSnowMap)" checked={showSnowMap} onChange={onToggleSnowMap} />
               <CornerToggleRow label="Branthet" checked={showSlopeLayer} onChange={() => setShowSlopeLayer((v) => !v)} />
-              <CornerToggleRow label="3D-vy" checked={is3D} onChange={() => setIs3D((v) => !v)} />
+              <CornerToggleRow
+                label="3D-vy"
+                checked={is3D}
+                onChange={() => setIs3D((v) => !v)}
+                disabled={mapStyle === 'satellite'}
+                disabledTitle="Endast tillgängligt i Outdoors-läge"
+              />
             </div>
           </div>
         </div>
@@ -329,14 +341,27 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
 
 // En kompakt växlingsrad i kartlagerpanelen — samma princip (etikett + switch) som
 // filtren i vänstersidopanelen, bara mindre.
-function CornerToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+function CornerToggleRow({
+  label, checked, onChange, disabled, disabledTitle,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+  disabledTitle?: string;
+}) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="text-xs font-medium text-slate-700">{label}</span>
+      <span className={`text-xs font-medium ${disabled ? 'text-slate-400' : 'text-slate-700'}`}>{label}</span>
       <button
         onClick={onChange}
+        disabled={disabled}
+        title={disabled ? disabledTitle : undefined}
         aria-pressed={checked}
-        className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? 'bg-blue-600' : 'bg-slate-300'}`}
+        aria-disabled={disabled}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition ${
+          disabled ? 'cursor-not-allowed bg-slate-200' : checked ? 'bg-blue-600' : 'bg-slate-300'
+        }`}
       >
         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
       </button>
