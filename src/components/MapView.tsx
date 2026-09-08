@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { Layers } from 'lucide-react';
 import { MAPBOX_TOKEN } from '@/data/resorts';
 import type { Resort } from '@/types';
 
@@ -10,6 +11,7 @@ interface MapViewProps {
   onSelect: (resort: Resort) => void;
   flyTarget: { lat: number; lng: number; zoom?: number; nonce: number } | null;
   showSnowMap: boolean;
+  onToggleSnowMap: () => void;
   resizeTrigger: number;
   isLanding: boolean;
 }
@@ -20,6 +22,15 @@ const ZOOM_MAP = 7.5;
 const MAP_PITCH = 60;
 const MAP_BEARING = -20;
 const TERRAIN_EXAGGERATION = 1.3;
+
+type MapStyleId = 'outdoors' | 'satellite';
+
+// Bas-stilarnas URL:er. Satellit har ingen säsongsgaranti (bilderna kan vara från
+// sommarhalvåret), men fungerar som ett alternativ till outdoors-stilen.
+const STYLE_URLS: Record<MapStyleId, string> = {
+  outdoors: 'mapbox://styles/mapbox/outdoors-v12',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
+};
 
 // Regex för lager som ska döljas på startsidan (etiketter + vägar + gränser)
 const HIDE_LINE_PATTERN = /road|tunnel|bridge|ferry|admin|country|border|boundary/;
@@ -42,7 +53,8 @@ const SLOPE_ATTRIBUTION = 'produced using Copernicus WorldDEM-30 © DLR e.V. 201
 
 // Baskartans terräng-, landtäcke- och vattenlager som ska färgsättas om (outdoors-v12).
 // Vägar, byggnader, admin-gränser och opensnowmap-layer rörs inte. Terräng/landtäcke
-// gråtonas, vatten får en egen lågmäld blå kulör — se transform-fältet.
+// gråtonas, vatten får en egen lågmäld blå kulör — se transform-fältet. Satellitstilen
+// saknar dessa vektor-fill-lager helt (rasterbilder), så forEach:en nedan blir en no-op där.
 const BASEMAP_COLOR_LAYERS: Array<{
   id: string;
   prop: 'background-color' | 'fill-color' | 'line-color';
@@ -64,12 +76,15 @@ const BASEMAP_COLOR_LAYERS: Array<{
   { id: 'waterway-shadow', prop: 'line-color', transform: waterTransform },
 ];
 
-export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, resizeTrigger, isLanding }: MapViewProps) {
+export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, onToggleSnowMap, resizeTrigger, isLanding }: MapViewProps) {
   // 2D är standardläget varje gång man navigerar in i kartvyn — 3D är en manuell toggle (knappen
   // nedan), inte något som ska aktiveras automatiskt.
   const [is3D, setIs3D] = useState(false);
   // Branthetslagret är avstängt som standard, samma mönster som OpenSnowMap-lagret.
   const [showSlopeLayer, setShowSlopeLayer] = useState(false);
+  // Outdoors är standardstilen varje gång man navigerar in i kartvyn — samma princip som is3D.
+  const [mapStyle, setMapStyle] = useState<MapStyleId>('outdoors');
+  const [cornerPanelOpen, setCornerPanelOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const hiddenLayersRef = useRef<string[]>([]);
@@ -79,6 +94,9 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const isLandingRef = useRef(isLanding);
   const showSnowMapRef = useRef(showSnowMap);
   const showSlopeLayerRef = useRef(showSlopeLayer);
+  // Hindrar mapStyle-effekten från att köra ett onödigt setStyle() direkt vid mount,
+  // eftersom kartan redan skapas med rätt stil (STYLE_URLS[mapStyle]) i init-effekten.
+  const isInitialStyleRef = useRef(true);
   resortsRef.current = resorts;
   activeIdRef.current = activeId;
   onSelectRef.current = onSelect;
@@ -94,7 +112,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       mapboxgl.accessToken = MAPBOX_TOKEN;
       map = new mapboxgl.Map({
         container: containerRef.current,
-        style: 'mapbox://styles/mapbox/outdoors-v12',
+        style: STYLE_URLS.outdoors,
         center: CENTER,
         zoom: isLandingRef.current ? ZOOM_LANDING : ZOOM_MAP,
         attributionControl: true,
@@ -103,89 +121,24 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       map.on('load', () => {
         map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-left');
         map.on('zoomend', () => console.log('zoom:', map.getZoom()));
-        map.setPaintProperty('aerialway', 'line-color', '#444444');
-        map.setPaintProperty('aerialway', 'line-width', [
-          'interpolate', ['exponential', 1.5], ['zoom'],
-          10, 1.5,
-          16, 2.5,
-        ]);
-        map.setPaintProperty('aerialway', 'line-dasharray', undefined);
-        map.setLayerZoomRange('aerialway', 9, 24);
-        // Gör baskartans terräng/landtäcke gråtonad och vattnet lågmält blått (rör inte vägar/admin/OpenSnowMap)
-        BASEMAP_COLOR_LAYERS.forEach(({ id, prop, transform }) => {
-          if (!map.getLayer(id)) return;
-          map.setPaintProperty(id, prop, recolor(map.getPaintProperty(id, prop), transform));
+
+        void initStyleDependentLayers(
+          map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef, hiddenLayersRef,
+        ).then(() => {
+          // Klick-/hover-lyssnarna registreras precis EN gång, här — de lever på
+          // map-instansen (inte på lagren) och triggas bara när lagret med matchande
+          // id faktiskt finns, så de överlever framtida stilbyten utan att registreras om.
+          setupResortInteractions(map, resortsRef, onSelectRef);
+
+          // Registreras EFTER initial load: 'style.load' fyrar redan för den första
+          // stilinläsningen (innan 'load'), så den här lyssnaren fångar bara efterföljande
+          // map.setStyle()-byten (satellit/outdoors-växlingen), inte det initiala.
+          map.on('style.load', () => {
+            void initStyleDependentLayers(
+              map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef, hiddenLayersRef,
+            );
+          });
         });
-        // 3D-terräng (riktig höjddata) + sky layer så det inte blir tomt ovanför horisonten
-        map.addSource('mapbox-dem', {
-          type: 'raster-dem',
-          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-          tileSize: 512,
-          maxzoom: 14,
-        });
-        map.setTerrain({ source: 'mapbox-dem', exaggeration: TERRAIN_EXAGGERATION });
-        map.addLayer({
-          id: 'sky',
-          type: 'sky',
-          paint: {
-            'sky-type': 'atmosphere',
-            'sky-atmosphere-sun': [0, 0],
-            'sky-atmosphere-sun-intensity': 15,
-          },
-        });
-        map.addSource('opensnowmap', {
-          type: 'raster',
-          tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          maxzoom: 16,
-          attribution: '© <a href="https://www.opensnowmap.org">www.opensnowmap.org</a>',
-        });
-        map.addLayer({
-          id: 'opensnowmap-layer',
-          type: 'raster',
-          source: 'opensnowmap',
-          minzoom: 10,
-          layout: {
-            visibility: showSnowMapRef.current ? 'visible' : 'none',
-          },
-          paint: {
-            'raster-opacity': [
-              'interpolate', ['linear'], ['zoom'],
-              10, 0,
-              10.5, 1.0,
-              12.5, 1.0,
-              14, 0.45,
-            ],
-          },
-        });
-        map.addSource('slope-alpe-dhuez', {
-          type: 'raster',
-          tiles: [SLOPE_TILE_URL],
-          tileSize: 256,
-          minzoom: 8,
-          // Tiles genereras bara t.o.m. z13 (se pipeline) — Mapbox overzoomar
-          // automatiskt (skalar upp z13-tiles) för högre zoom istället för att
-          // begära icke-existerande z14/z15-tiles.
-          maxzoom: 13,
-          attribution: SLOPE_ATTRIBUTION,
-        });
-        map.addLayer({
-          id: 'slope-layer',
-          type: 'raster',
-          source: 'slope-alpe-dhuez',
-          minzoom: 8,
-          layout: {
-            visibility: showSlopeLayerRef.current ? 'visible' : 'none',
-          },
-          paint: {
-            'raster-opacity': 0.7,
-          },
-        });
-        // Dölj etiketter/vägar direkt om startsidan är aktiv vid laddning
-        if (isLandingRef.current) {
-          applyLayerVisibility(map, true, hiddenLayersRef);
-        }
-        void setupResortLayers(map, resortsRef, activeIdRef, onSelectRef, !isLandingRef.current);
       });
       mapRef.current = map;
     } catch (err) {
@@ -197,6 +150,17 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       mapRef.current = null;
     };
   }, []);
+
+  // Växla kartstil (outdoors/satellit) via panelen
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (isInitialStyleRef.current) {
+      isInitialStyleRef.current = false;
+      return;
+    }
+    map.setStyle(STYLE_URLS[mapStyle]);
+  }, [mapStyle]);
 
   // Uppdatera GeoJSON-källan när den filtrerade ortslistan ändras
   useEffect(() => {
@@ -271,8 +235,12 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       // pitch/bearing nollställs alltid till platt rakt-uppifrån-vy — annars kan startsidans
       // låsta karta råka visa en lutad/roterad vy kvar från kartläget
       map.flyTo({ center: CENTER, zoom: ZOOM_LANDING, pitch: 0, bearing: 0, duration: 1600, essential: true });
-      // 2D är alltid standardläget nästa gång man går in i kartvyn (3D väljs manuellt via knappen)
+      // 2D, outdoors-stilen, avstängt branthetslager och ihopfälld lagerpanel är alltid
+      // standardläget nästa gång man går in i kartvyn (alla väljs bara manuellt via kontrollerna)
       setIs3D(false);
+      setMapStyle('outdoors');
+      setShowSlopeLayer(false);
+      setCornerPanelOpen(false);
     } else {
       handlers.forEach((h) => h.enable());
       // pitch/bearing: 0 = öppna alltid i 2D, rakt uppifrån — 3D aktiveras bara manuellt (is3D-effekten nedan)
@@ -308,29 +276,184 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     <>
       <div ref={containerRef} className="absolute inset-0" />
       {!isLanding && (
-        <button
-          onClick={() => setIs3D((v) => !v)}
-          aria-label={is3D ? 'Växla till 2D-vy' : 'Växla till 3D-vy'}
-          aria-pressed={is3D}
-          className="absolute right-4 top-4 z-10 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-md transition hover:bg-slate-50"
-        >
-          {is3D ? '3D' : '2D'}
-        </button>
-      )}
-      {!isLanding && (
-        <button
-          onClick={() => setShowSlopeLayer((v) => !v)}
-          aria-label={showSlopeLayer ? 'Dölj branthetslager' : 'Visa branthetslager'}
-          aria-pressed={showSlopeLayer}
-          className={`absolute right-4 top-16 z-10 rounded-lg px-3 py-2 text-xs font-semibold shadow-md transition ${
-            showSlopeLayer ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white text-slate-700 hover:bg-slate-50'
-          }`}
-        >
-          Branthet
-        </button>
+        <div className="absolute right-4 top-4 z-10">
+          <button
+            onClick={() => setCornerPanelOpen((v) => !v)}
+            aria-label={cornerPanelOpen ? 'Stäng kartlager' : 'Visa kartlager'}
+            aria-expanded={cornerPanelOpen}
+            className="rounded-lg bg-white p-2.5 text-slate-700 shadow-md transition hover:bg-slate-50"
+          >
+            <Layers className="h-4 w-4" />
+          </button>
+          <div
+            className={`absolute right-0 top-[calc(100%+8px)] w-56 origin-top-right rounded-lg bg-white p-3 shadow-lg transition duration-150 ease-out ${
+              cornerPanelOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
+            }`}
+          >
+            <div className="space-y-3">
+              <div>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Kartstil
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setMapStyle('outdoors')}
+                    aria-pressed={mapStyle === 'outdoors'}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${
+                      mapStyle === 'outdoors' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Outdoors
+                  </button>
+                  <button
+                    onClick={() => setMapStyle('satellite')}
+                    aria-pressed={mapStyle === 'satellite'}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${
+                      mapStyle === 'satellite' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    Satellit
+                  </button>
+                </div>
+              </div>
+              <CornerToggleRow label="Pistkarta (OpenSnowMap)" checked={showSnowMap} onChange={onToggleSnowMap} />
+              <CornerToggleRow label="Branthet" checked={showSlopeLayer} onChange={() => setShowSlopeLayer((v) => !v)} />
+              <CornerToggleRow label="3D-vy" checked={is3D} onChange={() => setIs3D((v) => !v)} />
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
+}
+
+// En kompakt växlingsrad i kartlagerpanelen — samma princip (etikett + switch) som
+// filtren i vänstersidopanelen, bara mindre.
+function CornerToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs font-medium text-slate-700">{label}</span>
+      <button
+        onClick={onChange}
+        aria-pressed={checked}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition ${checked ? 'bg-blue-600' : 'bg-slate-300'}`}
+      >
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
+      </button>
+    </div>
+  );
+}
+
+// Bygger om allt stilberoende innehåll som mapbox-gl nollar vid varje setStyle():
+// baskarte-omfärgning, terräng/sky, OpenSnowMap- och branthetslagren samt ort-nålarna.
+// Körs både från den initiala 'load' och från varje efterföljande 'style.load'
+// (satellit/outdoors-växling) — men registrerar INGA klick-/hover-lyssnare, se
+// setupResortInteractions för det (de ska bara registreras en gång, aldrig här).
+function initStyleDependentLayers(
+  map: mapboxgl.Map,
+  resortsRef: MutableRefObject<Resort[]>,
+  activeIdRef: MutableRefObject<string | null>,
+  isLandingRef: MutableRefObject<boolean>,
+  showSnowMapRef: MutableRefObject<boolean>,
+  showSlopeLayerRef: MutableRefObject<boolean>,
+  hiddenLayersRef: MutableRefObject<string[]>,
+): Promise<void> {
+  // aerialway (liftarna) finns bara i vissa stilar — no-op om lagret saknas i den
+  // aktuella stilen istället för att krascha.
+  if (map.getLayer('aerialway')) {
+    map.setPaintProperty('aerialway', 'line-color', '#444444');
+    map.setPaintProperty('aerialway', 'line-width', [
+      'interpolate', ['exponential', 1.5], ['zoom'],
+      10, 1.5,
+      16, 2.5,
+    ]);
+    map.setPaintProperty('aerialway', 'line-dasharray', undefined);
+    map.setLayerZoomRange('aerialway', 9, 24);
+  }
+
+  // Gör baskartans terräng/landtäcke gråtonad och vattnet lågmält blått (rör inte vägar/admin/OpenSnowMap).
+  // Läser alltid stilens EGNA default-färg (fräscht laddad stil), så det här är säkert att
+  // köra om upprepade gånger utan att färgerna "kompoundas".
+  BASEMAP_COLOR_LAYERS.forEach(({ id, prop, transform }) => {
+    if (!map.getLayer(id)) return;
+    map.setPaintProperty(id, prop, recolor(map.getPaintProperty(id, prop), transform));
+  });
+
+  // 3D-terräng (riktig höjddata) + sky layer så det inte blir tomt ovanför horisonten
+  map.addSource('mapbox-dem', {
+    type: 'raster-dem',
+    url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+    tileSize: 512,
+    maxzoom: 14,
+  });
+  map.setTerrain({ source: 'mapbox-dem', exaggeration: TERRAIN_EXAGGERATION });
+  map.addLayer({
+    id: 'sky',
+    type: 'sky',
+    paint: {
+      'sky-type': 'atmosphere',
+      'sky-atmosphere-sun': [0, 0],
+      'sky-atmosphere-sun-intensity': 15,
+    },
+  });
+
+  map.addSource('opensnowmap', {
+    type: 'raster',
+    tiles: ['https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png'],
+    tileSize: 256,
+    maxzoom: 16,
+    attribution: '© <a href="https://www.opensnowmap.org">www.opensnowmap.org</a>',
+  });
+  map.addLayer({
+    id: 'opensnowmap-layer',
+    type: 'raster',
+    source: 'opensnowmap',
+    minzoom: 10,
+    layout: {
+      visibility: showSnowMapRef.current ? 'visible' : 'none',
+    },
+    paint: {
+      'raster-opacity': [
+        'interpolate', ['linear'], ['zoom'],
+        10, 0,
+        10.5, 1.0,
+        12.5, 1.0,
+        14, 0.45,
+      ],
+    },
+  });
+
+  map.addSource('slope-alpe-dhuez', {
+    type: 'raster',
+    tiles: [SLOPE_TILE_URL],
+    tileSize: 256,
+    minzoom: 8,
+    // Tiles genereras bara t.o.m. z13 (se pipeline) — Mapbox overzoomar
+    // automatiskt (skalar upp z13-tiles) för högre zoom istället för att
+    // begära icke-existerande z14/z15-tiles.
+    maxzoom: 13,
+    attribution: SLOPE_ATTRIBUTION,
+  });
+  map.addLayer({
+    id: 'slope-layer',
+    type: 'raster',
+    source: 'slope-alpe-dhuez',
+    minzoom: 8,
+    layout: {
+      visibility: showSlopeLayerRef.current ? 'visible' : 'none',
+    },
+    paint: {
+      'raster-opacity': 0.7,
+    },
+  });
+
+  // Dölj etiketter/vägar direkt om startsidan är aktiv (både vid initial load och
+  // om en stilväxling skulle ske medan startsidan råkar vara låst)
+  if (isLandingRef.current) {
+    applyLayerVisibility(map, true, hiddenLayersRef);
+  }
+
+  return addResortLayers(map, resortsRef, activeIdRef, !isLandingRef.current);
 }
 
 // Döljer eller återställer etiketter, vägar och landsgränser
@@ -458,16 +581,16 @@ function loadPinImage(color: string): Promise<HTMLImageElement> {
   });
 }
 
-// Lägger till klustringskälla, kluster-/pin-lager och deras klick-/hover-hantering.
-// Körs en gång från map.on('load', ...) — lyssnarna registreras bara här och
-// läser alltid senaste data via refs, precis som övrig klick-hantering i filen.
-async function setupResortLayers(
+// Lägger till klustringskälla, kluster-/pin-lager, pin-bilder och lagrens synlighet.
+// Körs vid initial load OCH vid varje efterföljande stilbyte (se initStyleDependentLayers)
+// eftersom mapbox-gl nollar runtime-tillagda källor/lager vid setStyle(). Registrerar
+// INGA event-lyssnare — det görs en gång för alla i setupResortInteractions.
+async function addResortLayers(
   map: mapboxgl.Map,
   resortsRef: MutableRefObject<Resort[]>,
   activeIdRef: MutableRefObject<string | null>,
-  onSelectRef: MutableRefObject<(resort: Resort) => void>,
   visibleOnLoad: boolean,
-) {
+): Promise<void> {
   const [defaultPin, activePin] = await Promise.all([
     loadPinImage(PIN_COLOR_DEFAULT),
     loadPinImage(PIN_COLOR_ACTIVE),
@@ -522,7 +645,20 @@ async function setupResortLayers(
   });
 
   setResortLayersVisibility(map, visibleOnLoad);
+}
 
+// Registrerar klick-/hover-hantering för kluster och enskilda nålar (tooltip, klick-till-
+// detaljvy, klick-till-zoom). Körs EN gång, någonsin, från den initiala 'load'-callbacken.
+// Lyssnarna lever på map-instansen (map.on(event, layerId, handler) är delegerad), inte på
+// lagren själva — de triggas helt enkelt inte medan ett lager med matchande id saknas, och
+// återupptas automatiskt så fort addResortLayers återskapar det efter ett stilbyte. Om den
+// här funktionen kördes om vid varje stilbyte skulle lyssnarna dubbleras och trigga
+// klick-/hover-hanteringen flera gånger per interaktion.
+function setupResortInteractions(
+  map: mapboxgl.Map,
+  resortsRef: MutableRefObject<Resort[]>,
+  onSelectRef: MutableRefObject<(resort: Resort) => void>,
+) {
   // Tooltip som visar ortens namn vid hover över en enskild nål
   const tooltip = new mapboxgl.Popup({
     closeButton: false,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Train, Snowflake, Clock, Tag, Layers, ChevronDown, Globe } from 'lucide-react';
+import { Search, Train, Snowflake, Clock, Tag, ChevronDown, Globe } from 'lucide-react';
 import type { Filters, PriceLevel, Resort } from '@/types';
 
 interface SidebarProps {
@@ -10,8 +10,6 @@ interface SidebarProps {
   allResorts: Resort[];
   activeId: string | null;
   onSelect: (resort: Resort) => void;
-  showSnowMap: boolean;
-  onToggleSnowMap: () => void;
 }
 
 interface AccordionSectionProps {
@@ -46,7 +44,7 @@ function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectio
 
 const PRICE_LEVELS: PriceLevel[] = ['$', '$$', '$$$', '$$$$'];
 
-export default function Sidebar({ filters, setFilters, resorts, allResorts, activeId, onSelect, showSnowMap, onToggleSnowMap }: SidebarProps) {
+export default function Sidebar({ filters, setFilters, resorts, allResorts, activeId, onSelect }: SidebarProps) {
   const maxTransferRange = Math.max(...allResorts.map((r) => r.transferMin));
   const maxPisteRange = Math.max(...allResorts.map((r) => r.pisteKm));
   // Länder härledda från datan (inte hårdkodade) — filtret följer automatiskt med om/när fler
@@ -223,18 +221,6 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
                 aria-pressed={filters.trainOnly}
               >
                 <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${filters.trainOnly ? 'left-[22px]' : 'left-0.5'}`} />
-              </button>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
-              <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <Layers className="h-4 w-4 text-sky-600" /> Visa pistkarta
-              </span>
-              <button
-                onClick={onToggleSnowMap}
-                className={`relative h-6 w-11 rounded-full transition ${showSnowMap ? 'bg-sky-500' : 'bg-slate-300'}`}
-                aria-pressed={showSnowMap}
-              >
-                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${showSnowMap ? 'left-[22px]' : 'left-0.5'}`} />
               </button>
             </div>
           </div>

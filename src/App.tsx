@@ -34,6 +34,9 @@ export default function App() {
   useEffect(() => {
     setSidebarOpen(!isLanding);
     setResizeTrigger((n) => n + 1);
+    // OpenSnowMap-lagret ska alltid starta avstängt nästa gång man går in i kartvyn,
+    // oavsett vad det var satt till förra besöket — samma princip som is3D/branthet i MapView.
+    if (isLanding) setShowSnowMap(false);
   }, [isLanding]);
 
   const filtered = useMemo(() => {
@@ -77,8 +80,6 @@ export default function App() {
               allResorts={RESORTS}
               activeId={activeResort?.name ?? null}
               onSelect={handleSelect}
-              showSnowMap={showSnowMap}
-              onToggleSnowMap={() => setShowSnowMap((v) => !v)}
             />
           </div>
         </div>
@@ -105,6 +106,7 @@ export default function App() {
           onSelect={handleSelect}
           flyTarget={flyTarget}
           showSnowMap={showSnowMap}
+          onToggleSnowMap={() => setShowSnowMap((v) => !v)}
           resizeTrigger={resizeTrigger}
           isLanding={isLanding}
         />
