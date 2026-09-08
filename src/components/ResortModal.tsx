@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  X, Mountain, ArrowDown, Cable, Plane, Train, Clock, Ruler, MapPin, CheckCircle2, ChevronDown,
+  X, Plane, Train, Clock, MapPin, CheckCircle2, ChevronDown,
   Ticket, BedDouble, Car, Package, ArrowUpRight, Calendar,
 } from 'lucide-react';
 import type { Resort } from '@/types';
@@ -73,13 +73,32 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
 
   if (!resort) return null;
 
-  const stats = [
-    { icon: Mountain, label: 'Tophöjd', value: `${resort.maxAlt} m` },
-    { icon: ArrowDown, label: 'Dalhöjd', value: `${resort.minAlt} m` },
-    { icon: Cable, label: 'Liftar', value: `${resort.lifts}` },
-    { icon: Ruler, label: 'Pistlängd', value: `${resort.pisteKm} km` },
-    { icon: Clock, label: 'Transfertid', value: `${resort.transferMin} min` },
-    { icon: Plane, label: 'Närmaste flygplats', value: resort.airport },
+  // Kompakt läge — tre kolumner, två staplade värden per kolumn (label överst i liten grå
+  // versal text, värde i fetstil under), samma stil som kolumnerna i expanderat lägets
+  // "Skidsystemet"-sektion (se MountainProfile.tsx). Varje kolumn är EN gemensam ljusgrå
+  // bakgrundsruta istället för att varje värde hade sin egen separata ruta som förut.
+  const compactColumns = [
+    {
+      key: 'height',
+      rows: [
+        { label: 'Topphöjd', value: `${resort.maxAlt} m` },
+        { label: 'Dalhöjd', value: `${resort.minAlt} m` },
+      ],
+    },
+    {
+      key: 'system',
+      rows: [
+        { label: 'Pistlängd', value: `${resort.pisteKm} km` },
+        { label: 'Liftar', value: `${resort.lifts}` },
+      ],
+    },
+    {
+      key: 'travel',
+      rows: [
+        { label: 'Närmaste flygplats', value: resort.airport },
+        { label: 'Transfertid', value: `${resort.transferMin} min` },
+      ],
+    },
   ];
 
   // Affiliate Hub — konverteringsyta i expanderat läge. Använder platshållar-URL:er från
@@ -393,14 +412,16 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                 </span>
               </div>
 
-              {/* stats grid */}
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                {stats.map((s) => (
-                  <div key={s.label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                      <s.icon className="h-3 w-3" /> {s.label}
-                    </div>
-                    <div className="mt-0.5 text-sm font-bold text-slate-800">{s.value}</div>
+              {/* stats grid — tre kolumner, två staplade värden per kolumn i en gemensam ruta */}
+              <div className="grid grid-cols-3 gap-2.5">
+                {compactColumns.map((col) => (
+                  <div key={col.key} className="flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5">
+                    {col.rows.map((r) => (
+                      <div key={r.label}>
+                        <div className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">{r.label}</div>
+                        <div className="mt-0.5 text-sm font-bold text-slate-800">{r.value}</div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
