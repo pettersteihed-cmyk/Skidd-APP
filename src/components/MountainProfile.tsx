@@ -100,19 +100,27 @@ export default function MountainProfile({
         </div>
       </div>
 
-      {/* Kolumn 2: Liftar — totalt antal ("Liftar – 158", inline som Kolumn 1), sedan
-          uppdelning per typ. Samma gap-[13.5px]/gap-[5.5px] som Kolumn 1, av samma skäl (se
-          kommentaren där). */}
+      {/* Kolumn 2: Liftar — totalt antal ("Liftar – 158"), sedan uppdelning per typ. Samma
+          gap-[13.5px]/gap-[5.5px] som Kolumn 1, av samma skäl (se kommentaren där). Rubrikraden
+          är (liksom uppdelningsraderna nedan) en justify-between-rad — etikett+tankstreck i en
+          egen vänsterspan, totalvärdet som fristående högerspan — istället för en enda inline-rad.
+          Det garanterar att totalvärdets högerkant alltid matchar uppdelningsradernas högerkant
+          (de stretchar alla till samma kolumnbredd via align-items: stretch), oavsett hur breda
+          etiketterna eller siffrorna är — inte bara en bieffekt av att just den här raden råkar
+          vara den bredaste i kolumnen. */}
       <div className="flex flex-col gap-[13.5px] py-1">
-        <div className="text-sm">
-          <span className="font-medium text-slate-400">Liftar</span>
-          <span className="text-slate-300"> – </span>
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span>
+            <span className="font-medium text-slate-400">Liftar</span>
+            <span className="text-slate-300"> – </span>
+          </span>
           <span className="font-bold text-slate-800">{lifts}</span>
         </div>
         <div className="flex flex-col gap-[5.5px]">
           {liftBreakdown.map((l) => (
-            <div key={l.key} className="text-sm text-slate-500">
-              {l.label}: <span className="font-bold text-slate-800">{l.value ?? '–'}</span>
+            <div key={l.key} className="flex items-center justify-between gap-2 text-sm text-slate-500">
+              <span>{l.label}:</span>
+              <span className="font-bold text-slate-800">{l.value ?? '–'}</span>
             </div>
           ))}
         </div>
