@@ -9,6 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "snow:export": "node scripts/run-snow-export.mjs",
+    "snow:append-resort": "node scripts/run-append-resort.mjs",
+    "snow:generate-data": "node scripts/generateSnowHistoryData.mjs",
     "licenses": "license-checker --summary"
   },
   "dependencies": {
