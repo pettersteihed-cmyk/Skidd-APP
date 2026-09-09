@@ -152,9 +152,9 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     };
   }, []);
 
-  // Fog ovanpå terräng/sky (se useMapAtmosphere) - snö avstängd tills vidare, en
-  // separat toggle läggs på senare när fog är bedömd på egen hand.
-  useMapAtmosphere({ mapRef, snowEnabled: false });
+  // Fog ovanpå terräng/sky (se useMapAtmosphere) - snö bara i 3D (som i sin tur bara är
+  // tillgängligt i outdoors-läge, se is3D-togglen och satellitknappens setIs3D(false)).
+  useMapAtmosphere({ mapRef, snowEnabled: is3D });
 
   // Växla kartstil (outdoors/satellit) via panelen
   useEffect(() => {
