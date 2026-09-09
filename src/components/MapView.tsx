@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Layers } from 'lucide-react';
 import { MAPBOX_TOKEN } from '@/data/resorts';
 import type { Resort } from '@/types';
+import { useMapAtmosphere } from '@/hooks/useMapAtmosphere';
 
 interface MapViewProps {
   resorts: Resort[];
@@ -150,6 +151,10 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       mapRef.current = null;
     };
   }, []);
+
+  // Fog ovanpå terräng/sky (se useMapAtmosphere) - snö avstängd tills vidare, en
+  // separat toggle läggs på senare när fog är bedömd på egen hand.
+  useMapAtmosphere({ mapRef, snowEnabled: false });
 
   // Växla kartstil (outdoors/satellit) via panelen
   useEffect(() => {
