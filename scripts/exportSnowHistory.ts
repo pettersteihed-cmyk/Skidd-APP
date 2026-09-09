@@ -4,7 +4,7 @@
  * ⚠️ Använder Open-Meteos GRATIS-nivå — se header-kommentaren i fetchSnowHistory.ts.
  * Kör med: npm run snow:export
  */
-import { fetchAllResortsSnowHistory, SEASONS, type SeasonSnowSummary } from "./fetchSnowHistory.ts";
+import { fetchAllResortsSnowHistory, SEASONS, toCsvRow, type SeasonSnowSummary } from "./fetchSnowHistory.ts";
 import { RESORTS } from "../src/data/resorts.ts";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
@@ -27,15 +27,6 @@ function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function toCsvRow(fields: (string | number | null)[]): string {
-  return fields
-    .map((f) => {
-      const s = f === null || f === undefined ? "" : String(f);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    })
-    .join(",");
 }
 
 function flaggaOrimligtVärde(rad: SeasonSnowSummary): string | null {

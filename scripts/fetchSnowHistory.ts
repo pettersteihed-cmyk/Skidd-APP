@@ -17,14 +17,16 @@
 
 const OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive";
 
-/** De tre senaste vintersäsongerna (nov–apr) vi rapporterar snöhistorik för. */
+/** De fem senaste vintersäsongerna (nov–apr) vi rapporterar snöhistorik för. */
 export const SEASONS = [
+  { label: "2020-2021", start: "2020-11-01", end: "2021-04-30" },
+  { label: "2021-2022", start: "2021-11-01", end: "2022-04-30" },
   { label: "2022-2023", start: "2022-11-01", end: "2023-04-30" },
   { label: "2023-2024", start: "2023-11-01", end: "2024-04-30" },
   { label: "2024-2025", start: "2024-11-01", end: "2025-04-30" },
 ] as const;
 
-/** Hela perioden som täcker alla tre säsonger, för att hämta allt i ett enda API-anrop per ort. */
+/** Hela perioden som täcker alla fem säsonger, för att hämta allt i ett enda API-anrop per ort. */
 const FULL_RANGE_START = SEASONS[0].start;
 const FULL_RANGE_END = SEASONS[SEASONS.length - 1].end;
 
@@ -45,6 +47,21 @@ export interface SeasonSnowSummary {
   saknarNågraVärden: boolean;
   /** Sant om hela anropet för orten misslyckades (nätverksfel / icke-200 efter retries). */
   hämtningMisslyckades: boolean;
+}
+
+/**
+ * Formaterar en rad fält som en CSV-rad (citerar fält som innehåller komma, citattecken
+ * eller radbrytning). Delad mellan exportSnowHistory.ts (full export) och
+ * appendResortSnowHistory.ts (lägga till en enskild ort i efterhand) så CSV-formatet
+ * garanterat blir identiskt oavsett vilket skript som skrev raden.
+ */
+export function toCsvRow(fields: (string | number | null)[]): string {
+  return fields
+    .map((f) => {
+      const s = f === null || f === undefined ? "" : String(f);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    })
+    .join(",");
 }
 
 /** Gör om ett ortnamn till ett stabilt, URL-/filnamnsvänligt id (kebab-case, utan diakritiska tecken). */
