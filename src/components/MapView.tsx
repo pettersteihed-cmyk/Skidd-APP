@@ -765,7 +765,12 @@ function setTimeDistanceBinLayer(
     source: sourceId,
     minzoom: 8,
     layout: { visibility: visible ? 'visible' : 'none' },
-    paint: { 'raster-opacity': opacity },
+    // 'raster-resampling' är 'linear' som standard, vilket interpolerar mjukt
+    // mellan angränsande gula/blå/mörka pixlar vid rendering och overzoom
+    // (>z13) — det kan skapa orange-aktiga blandtoner som inte finns i själva
+    // PNG-filerna (bekräftat rena, se pipeline-verifieringen). 'nearest'
+    // behåller de platta, skarpa färgstegen.
+    paint: { 'raster-opacity': opacity, 'raster-resampling': 'nearest' },
   });
 }
 
