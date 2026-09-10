@@ -1,0 +1,93 @@
+<title>Stegad flernyans, tidsavstand</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef0f2; --surface: #ffffff; --surface-2: #e4e8eb;
+    --ink: #1b2430; --muted: #5b6572; --line: #d7dce1; --never: #080e28;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151c; --surface: #171e27; --surface-2: #1f2733;
+      --ink: #e7ebef; --muted: #93a1b0; --line: #2a3441;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151c; --surface: #171e27; --surface-2: #1f2733;
+    --ink: #e7ebef; --muted: #93a1b0; --line: #2a3441;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", system-ui, sans-serif; line-height: 1.55; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 3.5rem 1.75rem 5rem; }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; text-wrap: balance; font-weight: 600; margin: 0; }
+  header.page { display: flex; flex-direction: column; gap: 1.1rem; padding-bottom: 2.25rem; border-bottom: 1px solid var(--line); margin-bottom: 2.5rem; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-size: clamp(1.7rem, 3vw, 2.3rem); }
+  .lede { max-width: 74ch; color: var(--muted); font-size: 1.02rem; }
+
+  section { margin-bottom: 3rem; }
+  section > .section-note { color: var(--muted); max-width: 74ch; margin-bottom: 1.2rem; font-size: 0.95rem; }
+  .compare-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; }
+  @media (max-width: 1000px) { .compare-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .compare-grid { grid-template-columns: 1fr; } }
+  figure.card { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  figure.card img { display: block; width: 100%; height: auto; background: var(--surface-2); image-rendering: pixelated; }
+  figcaption { padding: 0.75rem 0.9rem; }
+  figcaption .key { font-family: "Fraunces", serif; font-weight: 600; font-size: 1.15rem; }
+  figcaption .detail { display: block; font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; }
+
+  .swatch-row { display: flex; gap: 0.3rem; margin-top: 0.6rem; }
+  .swatch { flex: 1; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
+
+  footer.page { border-top: 1px solid var(--line); padding-top: 1.5rem; color: var(--muted); font-size: 0.82rem; }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Mellanting &middot; Tidsavstand-lagret</div>
+    <h1>Stegad flernyans: 2-3 distinkta toner per sida, harda hopp - inte en mjuk gradient</h1>
+    <p class="lede">
+      Fyra varianter av samma referenstidpunkt (15 december, 09:00). Alla fyra behaller den
+      skarpa sol/skugga-gransen fran det binara alternativet, men inom respektive sida
+      hoppar fargen i 2 eller 3 klara steg (np.digitize, inga interpolerade mellanvarden)
+      beroende pa hur lange sedan/hur lange kvar till overgangen. Jamfor nyansantal,
+      mattnad och opacitet tillsammans nedan.
+    </p>
+  </header>
+
+  <section>
+    <div class="compare-grid">
+      <figure class="card">
+        <img src="data:image/png;base64,{{STEPPED_A}}" alt="Variant A">
+        <figcaption>
+          <span class="key">A</span>
+          <span class="detail">2 nyanser/sida &middot; 65% opacitet</span>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="data:image/png;base64,{{STEPPED_B}}" alt="Variant B">
+        <figcaption>
+          <span class="key">B</span>
+          <span class="detail">3 nyanser/sida &middot; 65% opacitet</span>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="data:image/png;base64,{{STEPPED_C}}" alt="Variant C">
+        <figcaption>
+          <span class="key">C</span>
+          <span class="detail">3 nyanser/sida, mer mattat &middot; 55% opacitet</span>
+        </figcaption>
+      </figure>
+      <figure class="card">
+        <img src="data:image/png;base64,{{STEPPED_D}}" alt="Variant D">
+        <figcaption>
+          <span class="key">D</span>
+          <span class="detail">3 nyanser/sida, mer mattat &middot; 45% opacitet</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <footer class="page">
+    Bara en forhandsgranskning - andrar inte build_final_rgba.py eller nagra tiles annu.
+  </footer>
+</div>

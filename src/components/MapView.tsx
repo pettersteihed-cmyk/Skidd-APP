@@ -52,6 +52,78 @@ const PIN_COLOR_ACTIVE = '#dc2626';
 const SLOPE_TILE_URL = 'https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/slope-tiles/alpe-dhuez/{z}/{x}/{y}.png';
 const SLOPE_ATTRIBUTION = 'produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved';
 
+// Sol/skugga-lager (pilot: Alpe d'Huez) — "tidsavstånd till övergång"-kartor,
+// förberäknade offline för 6 representativa datum (nov-apr) x 13 heltimmar
+// (06-18). Färgen kodar signerad tid till narmaste sol/skugga-övergång
+// (symmetrisk kring övergången, se pipeline-anteckningar), inte en live
+// SunCalc-beräkning i webbläsaren. Samma R2-bucket och Cache-Control-mönster
+// som branthet/horisont-tiles. Två av de 13 timbinsen visas samtidigt och
+// korstonas via raster-opacity (se timeDistanceBins-effekterna nedan) för
+// att undvika hopp mellan diskreta lägen.
+const TIME_DISTANCE_HOUR_MIN = 6;
+const TIME_DISTANCE_HOUR_MAX = 18;
+function timeDistanceTileUrl(dateId: string, hour: number): string {
+  const hh = String(hour).padStart(2, '0');
+  return `https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/time-distance-tiles/alpe-dhuez/${dateId}/${hh}/{z}/{x}/{y}.png`;
+}
+
+// Legend-färgerna för sol/skugga-lagret — MÅSTE matcha SUN_COLOR/SHADOW_COLOR/
+// NEVER_COLOR i pipeline/time-distance/build_final_rgba.py exakt, annars ljuger
+// teckenförklaringen om vad tiles faktiskt visar.
+const TIME_DISTANCE_LEGEND = [
+  { label: 'Sol', color: '#fdb813' },
+  { label: 'Skugga', color: '#2563eb' },
+  { label: 'Aldrig sol', color: '#080e28' },
+] as const;
+
+interface TimeDistanceDate {
+  id: string;
+  label: string;
+  month: number; // 1-12
+  day: number;
+}
+
+// De 6 förberäknade datumen (nov-apr, täcker skidsäsongen). Året i id:t är
+// bara pipelinens genereringsdatum — inget säsongsspecifikt data, samma
+// karta återanvänds varje år tills en ny körning görs.
+const TIME_DISTANCE_DATES: TimeDistanceDate[] = [
+  { id: '2025-11-15', label: 'Nov', month: 11, day: 15 },
+  { id: '2025-12-15', label: 'Dec', month: 12, day: 15 },
+  { id: '2026-01-15', label: 'Jan', month: 1, day: 15 },
+  { id: '2026-02-15', label: 'Feb', month: 2, day: 15 },
+  { id: '2026-03-15', label: 'Mar', month: 3, day: 15 },
+  { id: '2026-04-15', label: 'Apr', month: 4, day: 15 },
+];
+
+// Cirkulär dag-i-året-approximation (ignorerar årtal) för att hitta vilket
+// av de 6 datumen som ligger närmast dagens datum, oavsett årsskifte
+// (t.ex. 20 dec ska kunna hamna närmare "Dec" än "Nov" trots att den
+// naiva skillnaden annars kan bli stor over ett arsskifte).
+function dayOfYearApprox(month: number, day: number): number {
+  return Math.floor((Date.UTC(2001, month - 1, day) - Date.UTC(2001, 0, 1)) / 86400000);
+}
+function nearestTimeDistanceDateId(now: Date): string {
+  const todayDoy = dayOfYearApprox(now.getMonth() + 1, now.getDate());
+  let best = TIME_DISTANCE_DATES[0];
+  let bestDist = Infinity;
+  for (const d of TIME_DISTANCE_DATES) {
+    const doy = dayOfYearApprox(d.month, d.day);
+    const raw = Math.abs(doy - todayDoy);
+    const dist = Math.min(raw, 365 - raw);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = d;
+    }
+  }
+  return best.id;
+}
+
+interface TimeDistanceBins {
+  lowerHour: number;
+  upperHour: number;
+  frac: number;
+}
+
 // Baskartans terräng-, landtäcke- och vattenlager som ska färgsättas om (outdoors-v12).
 // Vägar, byggnader, admin-gränser och opensnowmap-layer rörs inte. Terräng/landtäcke
 // gråtonas, vatten får en egen lågmäld blå kulör — se transform-fältet. Satellitstilen
@@ -83,6 +155,14 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const [is3D, setIs3D] = useState(false);
   // Branthetslagret är avstängt som standard, samma mönster som OpenSnowMap-lagret.
   const [showSlopeLayer, setShowSlopeLayer] = useState(false);
+  // Sol/skugga-lagret är avstängt som standard, samma mönster som branthet/OpenSnowMap.
+  const [showSunShadow, setShowSunShadow] = useState(false);
+  // Minuter sedan midnatt, dagens datum — reglaget styr bara klockslag (se plan).
+  // Förvalt värde: aktuell tid när kartan öppnas.
+  const [sunTimeMinutes, setSunTimeMinutes] = useState(() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  });
   // Outdoors är standardstilen varje gång man navigerar in i kartvyn — samma princip som is3D.
   const [mapStyle, setMapStyle] = useState<MapStyleId>('outdoors');
   const [cornerPanelOpen, setCornerPanelOpen] = useState(false);
@@ -95,6 +175,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const isLandingRef = useRef(isLanding);
   const showSnowMapRef = useRef(showSnowMap);
   const showSlopeLayerRef = useRef(showSlopeLayer);
+  const showSunShadowRef = useRef(showSunShadow);
   // Hindrar mapStyle-effekten från att köra ett onödigt setStyle() direkt vid mount,
   // eftersom kartan redan skapas med rätt stil (STYLE_URLS[mapStyle]) i init-effekten.
   const isInitialStyleRef = useRef(true);
@@ -104,6 +185,27 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   isLandingRef.current = isLanding;
   showSnowMapRef.current = showSnowMap;
   showSlopeLayerRef.current = showSlopeLayer;
+  showSunShadowRef.current = showSunShadow;
+
+  // Vilket av de 6 förberäknade datumen som visas — närmast dagens datum som
+  // standard, växlingsbart manuellt via datumväljaren i panelen.
+  const [selectedDateId, setSelectedDateId] = useState(() => nearestTimeDistanceDateId(new Date()));
+  const selectedDateIdRef = useRef(selectedDateId);
+  selectedDateIdRef.current = selectedDateId;
+
+  // Vilka två av de 13 timbinsen (06-18) som ska korstonas för att representera
+  // reglagets klockslag just nu.
+  const clampedHourFloat = Math.min(
+    TIME_DISTANCE_HOUR_MAX,
+    Math.max(TIME_DISTANCE_HOUR_MIN, sunTimeMinutes / 60),
+  );
+  const timeDistanceBins: TimeDistanceBins = {
+    lowerHour: Math.min(TIME_DISTANCE_HOUR_MAX - 1, Math.floor(clampedHourFloat)),
+    upperHour: Math.min(TIME_DISTANCE_HOUR_MAX, Math.floor(clampedHourFloat) + 1),
+    frac: clampedHourFloat - Math.floor(clampedHourFloat),
+  };
+  const timeDistanceBinsRef = useRef(timeDistanceBins);
+  timeDistanceBinsRef.current = timeDistanceBins;
 
   // Karta-initialisering
   useEffect(() => {
@@ -124,7 +226,8 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         map.on('zoomend', () => console.log('zoom:', map.getZoom()));
 
         void initStyleDependentLayers(
-          map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef, hiddenLayersRef,
+          map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef,
+          showSunShadowRef, timeDistanceBinsRef, selectedDateIdRef, hiddenLayersRef,
         ).then(() => {
           // Klick-/hover-lyssnarna registreras precis EN gång, här — de lever på
           // map-instansen (inte på lagren) och triggas bara när lagret med matchande
@@ -136,7 +239,8 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
           // map.setStyle()-byten (satellit/outdoors-växlingen), inte det initiala.
           map.on('style.load', () => {
             void initStyleDependentLayers(
-              map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef, hiddenLayersRef,
+              map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef,
+              showSunShadowRef, timeDistanceBinsRef, selectedDateIdRef, hiddenLayersRef,
             );
           });
         });
@@ -212,6 +316,42 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     map.setLayoutProperty('slope-layer', 'visibility', showSlopeLayer ? 'visible' : 'none');
   }, [showSlopeLayer]);
 
+  // Byt vilka två timbin (06-18) sol/skugga-lagren pekar på, när reglaget
+  // korsar en heltimmesgräns, ELLER när datumet växlas manuellt (bägge kräver
+  // en källswap eftersom tile-URL:en beror på både datum och timme). Om
+  // källorna ännu inte finns (t.ex. körs detta innan initial 'load') görs
+  // inget här — initStyleDependentLayers sätter då redan rätt bin vid
+  // skapandet, via timeDistanceBinsRef/selectedDateIdRef. timeDistanceBins.frac
+  // är AVSIKTLIGT inte en dependency — dess ändringar hanteras av den separata
+  // opacitetseffekten nedan, annars skulle en källswap triggas på varje liten
+  // reglagerörelse istället för bara vid en faktisk timmesgräns.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource('time-distance-source-a')) return;
+    const { lowerHour, upperHour, frac } = timeDistanceBins;
+    setTimeDistanceBinLayer(map, 'time-distance-source-a', 'time-distance-layer-a', selectedDateId, lowerHour, 1 - frac, showSunShadowRef.current);
+    setTimeDistanceBinLayer(map, 'time-distance-source-b', 'time-distance-layer-b', selectedDateId, upperHour, frac, showSunShadowRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeDistanceBins.lowerHour, timeDistanceBins.upperHour, selectedDateId]);
+
+  // Korstona opaciteten mellan de två redan skapade timbinsen medan reglaget
+  // dras inom samma binpar (ingen källbyte, bara raster-opacity).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getLayer('time-distance-layer-a') || !map.getLayer('time-distance-layer-b')) return;
+    map.setPaintProperty('time-distance-layer-a', 'raster-opacity', 1 - timeDistanceBins.frac);
+    map.setPaintProperty('time-distance-layer-b', 'raster-opacity', timeDistanceBins.frac);
+  }, [timeDistanceBins.frac]);
+
+  // Slå av/på sol/skugga-lagret
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource('time-distance-source-a')) return;
+    const visibility = showSunShadow ? 'visible' : 'none';
+    map.setLayoutProperty('time-distance-layer-a', 'visibility', visibility);
+    map.setLayoutProperty('time-distance-layer-b', 'visibility', visibility);
+  }, [showSunShadow]);
+
   // Fly to target när ort väljs
   useEffect(() => {
     const map = mapRef.current;
@@ -245,6 +385,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       setIs3D(false);
       setMapStyle('outdoors');
       setShowSlopeLayer(false);
+      setShowSunShadow(false);
       setCornerPanelOpen(false);
     } else {
       handlers.forEach((h) => h.enable());
@@ -329,6 +470,59 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
               </div>
               <CornerToggleRow label="Pistkarta (OpenSnowMap)" checked={showSnowMap} onChange={onToggleSnowMap} />
               <CornerToggleRow label="Branthet" checked={showSlopeLayer} onChange={() => setShowSlopeLayer((v) => !v)} />
+              <div>
+                <CornerToggleRow
+                  label="Sol/skugga"
+                  checked={showSunShadow}
+                  onChange={() => setShowSunShadow((v) => !v)}
+                />
+                {showSunShadow && (
+                  <div className="mt-2 space-y-2">
+                    <div className="grid grid-cols-3 gap-1">
+                      {TIME_DISTANCE_DATES.map((d) => (
+                        <button
+                          key={d.id}
+                          onClick={() => setSelectedDateId(d.id)}
+                          aria-pressed={selectedDateId === d.id}
+                          className={`rounded px-1.5 py-1 text-[11px] font-semibold transition ${
+                            selectedDateId === d.id
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1439}
+                        step={5}
+                        value={sunTimeMinutes}
+                        onChange={(e) => setSunTimeMinutes(Number(e.target.value))}
+                        aria-label="Klockslag för sol/skugga"
+                        className="w-full"
+                      />
+                      <div className="mt-0.5 text-center text-[11px] text-slate-500">
+                        {formatMinutesAsTime(sunTimeMinutes)}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center gap-3">
+                      {TIME_DISTANCE_LEGEND.map((entry) => (
+                        <span key={entry.label} className="flex items-center gap-1 text-[10px] text-slate-500">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-sm"
+                            style={{ backgroundColor: entry.color }}
+                          />
+                          {entry.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <CornerToggleRow
                 label="3D-vy"
                 checked={is3D}
@@ -342,6 +536,14 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
       )}
     </>
   );
+}
+
+// Formaterar minuter-sedan-midnatt (reglagevärdet) som "HH:MM" för etiketten
+// under tidsreglaget.
+function formatMinutesAsTime(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
 // En kompakt växlingsrad i kartlagerpanelen — samma princip (etikett + switch) som
@@ -386,6 +588,9 @@ function initStyleDependentLayers(
   isLandingRef: MutableRefObject<boolean>,
   showSnowMapRef: MutableRefObject<boolean>,
   showSlopeLayerRef: MutableRefObject<boolean>,
+  showSunShadowRef: MutableRefObject<boolean>,
+  timeDistanceBinsRef: MutableRefObject<TimeDistanceBins>,
+  selectedDateIdRef: MutableRefObject<string>,
   hiddenLayersRef: MutableRefObject<string[]>,
 ): Promise<void> {
   // aerialway (liftarna) finns bara i vissa stilar — no-op om lagret saknas i den
@@ -477,6 +682,21 @@ function initStyleDependentLayers(
     },
   });
 
+  // Sol/skugga (pilot: Alpe d'Huez) — två av de 13 förberäknade timbinsen (för
+  // det valda datumet) visas samtidigt, korstonade via raster-opacity. Bin-
+  // bytet (när timeDistanceBins hoppar till nästa par, eller datumet växlas)
+  // hanteras separat i en MapView-effekt, precis som stilbyten hanteras här —
+  // den här funktionen sätter bara upp lagren med de bin/det datum som gäller
+  // just nu.
+  const { lowerHour, upperHour, frac: hourFrac } = timeDistanceBinsRef.current;
+  const dateId = selectedDateIdRef.current;
+  setTimeDistanceBinLayer(
+    map, 'time-distance-source-a', 'time-distance-layer-a', dateId, lowerHour, 1 - hourFrac, showSunShadowRef.current,
+  );
+  setTimeDistanceBinLayer(
+    map, 'time-distance-source-b', 'time-distance-layer-b', dateId, upperHour, hourFrac, showSunShadowRef.current,
+  );
+
   // Dölj etiketter/vägar direkt om startsidan är aktiv (både vid initial load och
   // om en stilväxling skulle ske medan startsidan råkar vara låst)
   if (isLandingRef.current) {
@@ -512,6 +732,41 @@ function applyLayerVisibility(
     });
     hiddenRef.current = [];
   }
+}
+
+// Sätter (eller byter) vilket datum+timbin en av de två sol/skugga-lagren visar.
+// Mapbox raster-källor kan inte peka om sina tiles i efterhand, så ett bin-
+// eller datumbyte görs genom att ta bort och återskapa källa+lager — samma
+// mönster som mapStyle-bytet (map.setStyle) redan gör i stort, bara begränsat
+// till just de här två lagren.
+function setTimeDistanceBinLayer(
+  map: mapboxgl.Map,
+  sourceId: string,
+  layerId: string,
+  dateId: string,
+  hour: number,
+  opacity: number,
+  visible: boolean,
+) {
+  if (map.getLayer(layerId)) map.removeLayer(layerId);
+  if (map.getSource(sourceId)) map.removeSource(sourceId);
+  map.addSource(sourceId, {
+    type: 'raster',
+    tiles: [timeDistanceTileUrl(dateId, hour)],
+    tileSize: 256,
+    minzoom: 8,
+    // Tiles genereras bara t.o.m. z13 (samma pipeline/mönster som branthet) —
+    // Mapbox overzoomar automatiskt för högre zoom.
+    maxzoom: 13,
+  });
+  map.addLayer({
+    id: layerId,
+    type: 'raster',
+    source: sourceId,
+    minzoom: 8,
+    layout: { visibility: visible ? 'visible' : 'none' },
+    paint: { 'raster-opacity': opacity },
+  });
 }
 
 // Visar/döljer klustringslagren (kluster + enskilda nålar) som en enhet
