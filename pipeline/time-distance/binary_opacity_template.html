@@ -1,0 +1,104 @@
+<title>Opacitetsniva, binart alternativ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef0f2; --surface: #ffffff; --surface-2: #e4e8eb;
+    --ink: #1b2430; --muted: #5b6572; --line: #d7dce1;
+    --sun: #fdb813; --shadow: #2563eb; --never: #080e28;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151c; --surface: #171e27; --surface-2: #1f2733;
+      --ink: #e7ebef; --muted: #93a1b0; --line: #2a3441;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151c; --surface: #171e27; --surface-2: #1f2733;
+    --ink: #e7ebef; --muted: #93a1b0; --line: #2a3441;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", system-ui, sans-serif; line-height: 1.55; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 3.5rem 1.75rem 5rem; }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; text-wrap: balance; font-weight: 600; margin: 0; }
+  header.page { display: flex; flex-direction: column; gap: 1.1rem; padding-bottom: 2.25rem; border-bottom: 1px solid var(--line); margin-bottom: 2.5rem; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-size: clamp(1.7rem, 3vw, 2.3rem); }
+  .lede { max-width: 70ch; color: var(--muted); font-size: 1.02rem; }
+
+  .legend-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 0.5rem; }
+  @media (max-width: 760px) { .legend-row { grid-template-columns: 1fr; } }
+  .legend-box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; }
+  .legend-box .label { font-family: "IBM Plex Mono", monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+  .swatch { width: 100%; height: 24px; border-radius: 6px; margin-bottom: 0.6rem; border: 1px solid var(--line); }
+  .sun-swatch { background: var(--sun); }
+  .shadow-swatch { background: var(--shadow); }
+  .never-swatch { background: var(--never); }
+  .legend-box p { margin: 0; font-size: 0.85rem; color: var(--ink); }
+
+  section { margin-bottom: 3rem; }
+  section > h2 { font-size: 1.25rem; margin-bottom: 0.4rem; }
+  section > .section-note { color: var(--muted); max-width: 70ch; margin-bottom: 1.2rem; font-size: 0.95rem; }
+  .compare-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+  @media (max-width: 900px) { .compare-grid { grid-template-columns: 1fr; } }
+  figure.card { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  figure.card.recommended { border-color: var(--sun); border-width: 2px; }
+  figure.card img { display: block; width: 100%; height: auto; background: var(--surface-2); image-rendering: pixelated; }
+  figcaption { padding: 0.85rem 1.1rem; font-family: "Fraunces", serif; font-weight: 600; font-size: 1.05rem; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+  figcaption .tag { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  footer.page { border-top: 1px solid var(--line); padding-top: 1.5rem; color: var(--muted); font-size: 0.82rem; }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Finjustering &middot; Binart alternativ, tidsavstand-lagret</div>
+    <h1>Vilken opacitet slapper igenom terrangen utan att gransen blir en gradient?</h1>
+    <p class="lede">
+      Samma tva platta farger och samma skarpa sol/skugga-grans som forut (15 december, 09:00).
+      Enda skillnaden mellan panelerna ar hur mycket av hillshade under som skymtar igenom -
+      fargen andrar aldrig nyans, bara hur mycket berggrund som lyser igenom den.
+    </p>
+    <div class="legend-row">
+      <div class="legend-box">
+        <div class="label">I sol just nu</div>
+        <div class="swatch sun-swatch"></div>
+        <p>#fdb813</p>
+      </div>
+      <div class="legend-box">
+        <div class="label">I skugga just nu</div>
+        <div class="swatch shadow-swatch"></div>
+        <p>#2563eb</p>
+      </div>
+      <div class="legend-box">
+        <div class="label">Aldrig sol denna dag</div>
+        <div class="swatch never-swatch"></div>
+        <p>#080e28</p>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>15 december, 09:00 - tre opacitetsniva</h2>
+    <p class="section-note">
+      100% ar referensen fran forra versionen (helt platt, ingen terrang syns). 80% ar den
+      foreslagna malniva. 65% visar hur mycket mer terrang som skymtar igenom om vi gar langre.
+    </p>
+    <div class="compare-grid">
+      <figure class="card">
+        <img src="data:image/png;base64,{{OP100}}" alt="100% opacitet">
+        <figcaption>100% <span class="tag">forra versionen</span></figcaption>
+      </figure>
+      <figure class="card recommended">
+        <img src="data:image/png;base64,{{OP80}}" alt="80% opacitet">
+        <figcaption>80% <span class="tag">forslag</span></figcaption>
+      </figure>
+      <figure class="card">
+        <img src="data:image/png;base64,{{OP65}}" alt="65% opacitet">
+        <figcaption>65% <span class="tag">mer terrang</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <footer class="page">
+    Bara en forhandsgranskning av opacitetsniva - andrar inte preview_binary.py eller nagra tiles an.
+  </footer>
+</div>

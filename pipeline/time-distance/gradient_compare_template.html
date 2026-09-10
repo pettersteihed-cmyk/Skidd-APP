@@ -1,0 +1,151 @@
+<title>Symmetrisk gradient, tidsavstånd</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #eef0f2; --surface: #ffffff; --surface-2: #e4e8eb;
+    --ink: #1b2430; --muted: #5b6572; --line: #d7dce1;
+    --yellow: #fde047; --orange: #f97316; --blue: #1e3a8a;
+    --gold: #92400e; --amber: #fbbf24; --never: #6b7280; --warn: #92400e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10151c; --surface: #171e27; --surface-2: #1f2733;
+      --ink: #e7ebef; --muted: #93a1b0; --line: #2a3441;
+      --yellow: #fde047; --orange: #fb923c; --blue: #3b5bc9;
+      --gold: #b45309; --amber: #fbbf24; --never: #8b95a1; --warn: #fbbf24;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10151c; --surface: #171e27; --surface-2: #1f2733;
+    --ink: #e7ebef; --muted: #93a1b0; --line: #2a3441;
+    --yellow: #fde047; --orange: #fb923c; --blue: #3b5bc9;
+    --gold: #b45309; --amber: #fbbf24; --never: #8b95a1; --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", system-ui, sans-serif; line-height: 1.55; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 3.5rem 1.75rem 5rem; }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; text-wrap: balance; font-weight: 600; margin: 0; }
+  header.page { display: flex; flex-direction: column; gap: 1.1rem; padding-bottom: 2.25rem; border-bottom: 1px solid var(--line); margin-bottom: 2.5rem; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-size: clamp(1.7rem, 3vw, 2.2rem); }
+  .lede { max-width: 68ch; color: var(--muted); font-size: 1.02rem; }
+
+  .legends { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 0.5rem; }
+  @media (max-width: 700px) { .legends { grid-template-columns: 1fr; } }
+  .legend-box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem 1.1rem; }
+  .legend-box .label { font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+  .legend-bar { height: 12px; border-radius: 999px; margin-bottom: 0.4rem; }
+  .old-bar { background: linear-gradient(90deg, var(--gold) 0%, var(--amber) 27%, var(--yellow) 40%, var(--orange) 50%, #608dc9 62%, var(--blue) 100%); }
+  .new-bar {
+    background-image:
+      linear-gradient(90deg, rgba(38,71,160,0.85) 0%, rgba(96,141,201,1) 21%, rgba(249,115,22,1) 50%, rgba(96,141,201,1) 79%, rgba(38,71,160,0.85) 100%),
+      repeating-conic-gradient(#cbd2d9 0% 25%, #eef0f2 0% 50%);
+    background-size: 100% 100%, 10px 10px;
+  }
+  .legend-ticks { display: flex; justify-content: space-between; font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; color: var(--muted); }
+  .legend-foot { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; font-size: 0.8rem; color: var(--muted); }
+  .swatch { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
+  .swatch.old-never { background: #6b7280; }
+  .swatch.new-never { background: #2647a0; opacity: 0.85; }
+
+  section { margin-bottom: 3rem; }
+  section > h2 { font-size: 1.2rem; margin-bottom: 0.9rem; }
+  .row { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 0.9rem; align-items: center; margin-bottom: 0.9rem; }
+  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  .row .rowlabel { font-family: "Fraunces", serif; font-weight: 600; font-size: 1.05rem; }
+  figure.card { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  figure.card img { display: block; width: 100%; height: auto; background: var(--surface-2); }
+  figcaption { padding: 0.4rem 0.7rem 0.5rem; font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; color: var(--muted); text-align: center; border-top: 1px solid var(--line); }
+
+  .callout { display: flex; gap: 0.9rem; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 1.1rem 1.3rem; }
+  .callout .mark { font-family: "IBM Plex Mono", monospace; color: var(--warn); font-weight: 500; flex-shrink: 0; }
+  .callout p { margin: 0; color: var(--ink); font-size: 0.95rem; }
+  footer.page { border-top: 1px solid var(--line); padding-top: 1.5rem; color: var(--muted); font-size: 0.82rem; }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Gradient-omdesign · Tidsavstånd-lagret</div>
+    <h1>Samlad ändring: 85% opacitet och ljusare djupblå i den kallaste svansen</h1>
+    <p class="lede">
+      Samma fem kartor (15 dec kl 08/11/14/17, samt 15 mar kl 11), med två samtidiga ändringar
+      bara i den allra kallaste delen av skalan (>250 min från övergången, samt "aldrig"): opaciteten
+      sänks till <b>85%</b> (från 100%) så hillshaden skymtar svagt igenom, och färgtonen lättas
+      något — från <code>#1e3a8a</code> till <code>#2647a0</code> — men förblir tydligt mörkare/mer
+      "djupblå" än den ljusare cyanblå övergångstonen i mitten av skalan (<code>#608dc9</code>), så de
+      två aldrig kan förväxlas. Gult, orange och hela den mellersta övergången är helt oförändrade.
+      Höger kolumn kompositerad över en hillshade-proxy från samma DEM. Ingen tile-ombyggnad gjord än.
+    </p>
+    <div class="legends">
+      <div class="legend-box">
+        <div class="label">Nuvarande (asymmetrisk)</div>
+        <div class="legend-bar old-bar"></div>
+        <div class="legend-ticks"><span>−240</span><span>−60</span><span>0</span><span>+30</span><span>+90</span><span>+240 min</span></div>
+        <div class="legend-foot"><span class="swatch old-never"></span> "Aldrig idag" = grå — ser ut som saknad data</div>
+      </div>
+      <div class="legend-box">
+        <div class="label">Ny (varierande opacitet, över hillshade)</div>
+        <div class="legend-bar new-bar"></div>
+        <div class="legend-ticks"><span>−300</span><span>−150</span><span>0</span><span>+150</span><span>+300 min</span></div>
+        <div class="legend-foot"><span class="swatch new-never"></span> "Aldrig idag" = samma ljusare djupblå, 85% opacitet — naturlig fortsättning av kalla änden</div>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>15 december — timprogression</h2>
+    <div class="row">
+      <div class="rowlabel">08:00</div>
+      <figure class="card"><img src="data:image/png;base64,{{OLD_2025_12_15_08}}"><figcaption>Nuvarande</figcaption></figure>
+      <figure class="card"><img src="data:image/png;base64,{{NEW_2025_12_15_08}}"><figcaption>Ny, över hillshade</figcaption></figure>
+    </div>
+    <div class="row">
+      <div class="rowlabel">11:00</div>
+      <figure class="card"><img src="data:image/png;base64,{{OLD_2025_12_15_11}}"><figcaption>Nuvarande</figcaption></figure>
+      <figure class="card"><img src="data:image/png;base64,{{NEW_2025_12_15_11}}"><figcaption>Ny, över hillshade</figcaption></figure>
+    </div>
+    <div class="row">
+      <div class="rowlabel">14:00</div>
+      <figure class="card"><img src="data:image/png;base64,{{OLD_2025_12_15_14}}"><figcaption>Nuvarande</figcaption></figure>
+      <figure class="card"><img src="data:image/png;base64,{{NEW_2025_12_15_14}}"><figcaption>Ny, över hillshade</figcaption></figure>
+    </div>
+    <div class="row">
+      <div class="rowlabel">17:00</div>
+      <figure class="card"><img src="data:image/png;base64,{{OLD_2025_12_15_17}}"><figcaption>Nuvarande</figcaption></figure>
+      <figure class="card"><img src="data:image/png;base64,{{NEW_2025_12_15_17}}"><figcaption>Ny, över hillshade</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>15 mars, 11:00 — kontroll mot ett annat datum</h2>
+    <div class="row">
+      <div class="rowlabel">11:00</div>
+      <figure class="card"><img src="data:image/png;base64,{{OLD_2026_03_15_11}}"><figcaption>Nuvarande</figcaption></figure>
+      <figure class="card"><img src="data:image/png;base64,{{NEW_2026_03_15_11}}"><figcaption>Ny, över hillshade</figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="callout" style="margin-bottom: 0.9rem;">
+      <span class="mark">①</span>
+      <p>
+        Tolkning av "hur nära middagstid" applicerad på den här axeln: eftersom värdet redan är
+        "minuter till/sedan övergången" (inte klockslag), blir den naturliga symmetrin kring
+        <b>övergångsögonblicket</b> (0 min) snarare än kring 12:00 rakt av — samma princip
+        (symmetrisk topp, kallnar åt båda håll) men tillämpad på rätt variabel för det här lagret.
+      </p>
+    </div>
+    <div class="callout">
+      <span class="mark">②</span>
+      <p>
+        "Aldrig övergång idag" bytt från grått (#6b7280, ser ut som saknad data) till en ännu
+        djupare mörkblå (#0d173c) — samma nyans-familj som skalans kalla ände, bara mörkare, så det
+        läses som "längre bort än det längsta normala värdet", inte som ett separat trasigt läge.
+      </p>
+    </div>
+  </section>
+
+  <footer class="page">
+    Ingen tile-ombyggnad eller uppladdning gjord — bara en förhandsgranskning av färgvalet.
+  </footer>
+</div>
