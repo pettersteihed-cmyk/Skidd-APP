@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
-import mapboxgl from 'mapbox-gl';
+import mapboxgl, { type FilterSpecification } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Layers } from 'lucide-react';
-import { MAPBOX_TOKEN } from '@/data/resorts';
+import { MAPBOX_TOKEN, RESORTS } from '@/data/resorts';
 import type { Resort } from '@/types';
 import { useMapAtmosphere } from '@/hooks/useMapAtmosphere';
 
@@ -75,6 +75,116 @@ const TIME_DISTANCE_LEGEND = [
   { label: 'Skugga', color: '#2563eb' },
   { label: 'Aldrig sol', color: '#080e28' },
 ] as const;
+
+// Etikett-densitet i 3D-läget: vid låg zoom + hög pitch (blick mot horisonten)
+// visar Mapboxs egna zoom-baserade filter på settlement-/road-label ändå för
+// många små ortnamn och vägnamn, eftersom filtret bara känner till kamerans
+// zoom (ett skalärt tal) - inte hur stort geografiskt område som faktiskt
+// syns vid den pitchen. Nedan är ett eget, striktare filter som bara
+// aktiveras när is3D är sant (se applyLabelDensityFilters) - i 2D-läget
+// lämnas Mapboxs egna, redan korrekta zoom-progression helt orörd.
+const RESORT_PROXIMITY_METERS = 30_000; // ca 3 mil - "nära en av våra skidorter"
+const SETTLEMENT_SYMBOLRANK_ALWAYS_MAX = 10; // <= detta = "stor stad" (Milano, Genève...), visas alltid
+
+interface ResortMultiPoint {
+  type: 'MultiPoint';
+  coordinates: [number, number][];
+}
+
+// Statisk geometri av våra 15 skidorters koordinater - används av Mapboxs
+// distance-uttryck för att avgöra om en ort/väg ligger nära nog för att visas
+// även om den annars skulle rankas som "för liten" vid den aktuella zoomen.
+const RESORT_POINTS_GEOJSON: ResortMultiPoint = {
+  type: 'MultiPoint',
+  coordinates: RESORTS.map((resort) => [resort.lng, resort.lat]),
+};
+
+// Klass/filterrank-vakten är kopierad rakt av från outdoors-v12:s egna
+// settlement-major-label/settlement-minor-label (identisk i båda) - vi byter
+// bara ut själva zoom/symbolrank-trappan, inte den här delen, så vi inte
+// råkar rakka in disputed- eller subdivision-rader av misstag.
+const SETTLEMENT_CLASS_GUARD: FilterSpecification = [
+  'all',
+  ['<=', ['get', 'filterrank'], 3],
+  ['match', ['get', 'class'],
+    ['settlement', 'disputed_settlement'],
+    ['match', ['get', 'worldview'], ['all', 'US'], true, false],
+    false],
+];
+
+// Stora städer (symbolrank <= 10) visas alltid, oavsett zoom.
+const SETTLEMENT_MAJOR_FILTER_3D: FilterSpecification = [
+  'all',
+  SETTLEMENT_CLASS_GUARD,
+  ['<=', ['get', 'symbolrank'], SETTLEMENT_SYMBOLRANK_ALWAYS_MAX],
+];
+
+// Mindre orter (symbolrank > 10) visas bara om de ligger inom
+// RESORT_PROXIMITY_METERS från en av våra skidorter - relevant för
+// skidåkare även om orten annars är för liten för att synas vid den zoomen.
+const SETTLEMENT_MINOR_FILTER_3D: FilterSpecification = [
+  'all',
+  SETTLEMENT_CLASS_GUARD,
+  ['>', ['get', 'symbolrank'], SETTLEMENT_SYMBOLRANK_ALWAYS_MAX],
+  ['<', ['distance', RESORT_POINTS_GEOJSON], RESORT_PROXIMITY_METERS],
+];
+
+const ROAD_LABEL_MAJOR_CLASSES = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary'];
+const ROAD_LABEL_MINOR_CLASSES = ['street', 'street_limited', 'track'];
+
+// Samma princip för vägnamn: stora vägar (motorväg t.o.m. tertiär) visas
+// alltid, mindre gator/stigar bara nära en skidort.
+const ROAD_LABEL_FILTER_3D: FilterSpecification = [
+  'all',
+  ['has', 'name'],
+  ['any',
+    ['match', ['get', 'class'], ROAD_LABEL_MAJOR_CLASSES, true, false],
+    ['all',
+      ['match', ['get', 'class'], ROAD_LABEL_MINOR_CLASSES, true, false],
+      ['<', ['distance', RESORT_POINTS_GEOJSON], RESORT_PROXIMITY_METERS]]],
+];
+
+// Motorväg/riksväg (samma nivå som Milano/Genève för orter) visas alltid.
+// OBS: snävare än ROAD_LABEL_MAJOR_CLASSES ovan — en fransk "route
+// départementale" (t.ex. D1089) klassas oftast som secondary/tertiary och
+// ska filtreras bort här, även om den fortfarande får ett namn-label.
+const ROAD_SHIELD_MAJOR_CLASSES = ['motorway', 'trunk'];
+
+// Vägnummerskyltar (A47, D1089, ...) — ett enda lager (road-number-shield,
+// source-layer "road", samma som road-label), inte uppdelat per vägklass.
+// `reflen` är INTE ett betydelsefält (bara längden på vägnummer-strängen,
+// styr vilken skyltgrafik som väljs) - det är `class` som avgör vikt, precis
+// som för road-label. Vi behåller hela standardfiltrets `has reflen`/
+// `reflen<=6`/pedestrian-service-uteslutning och zoom/längd-trappan (den
+// sistnämnda är en anti-repetitions-mekanism för korta vägsegment, inte en
+// betydelserangordning, och ska inte röras) — lägger bara till ett extra
+// AND-villkor för vår 3D-densitet.
+const ROAD_NUMBER_SHIELD_FILTER_3D: FilterSpecification = [
+  'all',
+  ['has', 'reflen'],
+  ['<=', ['get', 'reflen'], 6],
+  ['match', ['get', 'class'], ['pedestrian', 'service'], false, true],
+  ['step', ['zoom'],
+    ['==', ['geometry-type'], 'Point'],
+    11, ['>', ['get', 'len'], 5000],
+    12, ['>', ['get', 'len'], 2500],
+    13, ['>', ['get', 'len'], 1000],
+    14, true],
+  ['any',
+    ['match', ['get', 'class'], ROAD_SHIELD_MAJOR_CLASSES, true, false],
+    ['<', ['distance', RESORT_POINTS_GEOJSON], RESORT_PROXIMITY_METERS]],
+];
+
+const LABEL_DENSITY_LAYER_IDS = [
+  'settlement-major-label', 'settlement-minor-label', 'road-label', 'road-number-shield',
+] as const;
+type LabelDensityLayerId = (typeof LABEL_DENSITY_LAYER_IDS)[number];
+const LABEL_DENSITY_FILTERS_3D: Record<LabelDensityLayerId, FilterSpecification> = {
+  'settlement-major-label': SETTLEMENT_MAJOR_FILTER_3D,
+  'settlement-minor-label': SETTLEMENT_MINOR_FILTER_3D,
+  'road-label': ROAD_LABEL_FILTER_3D,
+  'road-number-shield': ROAD_NUMBER_SHIELD_FILTER_3D,
+};
 
 interface TimeDistanceDate {
   id: string;
@@ -176,6 +286,10 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const showSnowMapRef = useRef(showSnowMap);
   const showSlopeLayerRef = useRef(showSlopeLayer);
   const showSunShadowRef = useRef(showSunShadow);
+  const is3DRef = useRef(is3D);
+  // Sparar outdoors-v12:s PRISTINA filter per label-lager, så vi kan återställa
+  // dem när is3D slås av — se applyLabelDensityFilters.
+  const labelDensityDefaultFiltersRef = useRef<Partial<Record<LabelDensityLayerId, FilterSpecification | null | undefined>>>({});
   // Hindrar mapStyle-effekten från att köra ett onödigt setStyle() direkt vid mount,
   // eftersom kartan redan skapas med rätt stil (STYLE_URLS[mapStyle]) i init-effekten.
   const isInitialStyleRef = useRef(true);
@@ -186,6 +300,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   showSnowMapRef.current = showSnowMap;
   showSlopeLayerRef.current = showSlopeLayer;
   showSunShadowRef.current = showSunShadow;
+  is3DRef.current = is3D;
 
   // Vilket av de 6 förberäknade datumen som visas — närmast dagens datum som
   // standard, växlingsbart manuellt via datumväljaren i panelen.
@@ -228,6 +343,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         void initStyleDependentLayers(
           map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef,
           showSunShadowRef, timeDistanceBinsRef, selectedDateIdRef, hiddenLayersRef,
+          is3DRef, labelDensityDefaultFiltersRef,
         ).then(() => {
           // Klick-/hover-lyssnarna registreras precis EN gång, här — de lever på
           // map-instansen (inte på lagren) och triggas bara när lagret med matchande
@@ -241,6 +357,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
             void initStyleDependentLayers(
               map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef,
               showSunShadowRef, timeDistanceBinsRef, selectedDateIdRef, hiddenLayersRef,
+              is3DRef, labelDensityDefaultFiltersRef,
             );
           });
         });
@@ -256,9 +373,9 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
     };
   }, []);
 
-  // Fog ovanpå terräng/sky (se useMapAtmosphere) - snö bara i 3D (som i sin tur bara är
-  // tillgängligt i outdoors-läge, se is3D-togglen och satellitknappens setIs3D(false)).
-  useMapAtmosphere({ mapRef, snowEnabled: is3D });
+  // Fog ovanpå terräng/sky (se useMapAtmosphere) - snöeffekten är avstängd
+  // oavsett is3D (medveten avstängning, inte kopplad till 3D-läget längre).
+  useMapAtmosphere({ mapRef, snowEnabled: false });
 
   // Växla kartstil (outdoors/satellit) via panelen
   useEffect(() => {
@@ -406,7 +523,15 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   // knapptryckning (isLanding är avsiktligt INTE en dependency, se isLandingRef-vakten)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || isLandingRef.current) return;
+    if (!map) return;
+    // Byt place-label/road-label mellan Mapboxs standardfilter och vårt eget,
+    // striktare 3D-filter direkt när is3D slås av/på — INTE landing-vaktad som
+    // resten av effekten nedan: annars skulle filtret kunna fastna i 3D-läge
+    // om is3D nollställs (se isLanding-effekten ovan) medan startsidan visas,
+    // eftersom den här effekten då inte körs igen förrän is3D faktiskt ändras
+    // nästa gång.
+    applyLabelDensityFilters(map, is3D, labelDensityDefaultFiltersRef);
+    if (isLandingRef.current) return;
     if (is3D) {
       map.dragRotate.enable();
       map.touchZoomRotate.enable();
@@ -592,6 +717,8 @@ function initStyleDependentLayers(
   timeDistanceBinsRef: MutableRefObject<TimeDistanceBins>,
   selectedDateIdRef: MutableRefObject<string>,
   hiddenLayersRef: MutableRefObject<string[]>,
+  is3DRef: MutableRefObject<boolean>,
+  labelDensityDefaultFiltersRef: MutableRefObject<Partial<Record<LabelDensityLayerId, FilterSpecification | null | undefined>>>,
 ): Promise<void> {
   // aerialway (liftarna) finns bara i vissa stilar — no-op om lagret saknas i den
   // aktuella stilen istället för att krascha.
@@ -703,6 +830,12 @@ function initStyleDependentLayers(
     applyLayerVisibility(map, true, hiddenLayersRef);
   }
 
+  // Nollställ det sparade PRISTINA filtret — en färsk stil (initial load eller
+  // satellit/outdoors-byte) har alltid Mapboxs egna, orörda standardfilter, så
+  // det finns inget gammalt värde att bevara över stilbytet.
+  labelDensityDefaultFiltersRef.current = {};
+  applyLabelDensityFilters(map, is3DRef.current, labelDensityDefaultFiltersRef);
+
   return addResortLayers(map, resortsRef, activeIdRef, !isLandingRef.current);
 }
 
@@ -780,6 +913,24 @@ function setResortLayersVisibility(map: mapboxgl.Map, visible: boolean) {
     if (map.getLayer(id)) {
       map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
     }
+  });
+}
+
+// Växlar settlement-/road-label mellan Mapboxs standardfilter och vårt eget,
+// striktare 3D-filter (se LABEL_DENSITY_FILTERS_3D). Fångar stilens PRISTINA
+// filter i defaultFiltersRef första gången ett lager ses efter en (åter)inladd
+// stil — annars finns inget att återställa till när is3D slås av igen.
+function applyLabelDensityFilters(
+  map: mapboxgl.Map,
+  is3D: boolean,
+  defaultFiltersRef: MutableRefObject<Partial<Record<LabelDensityLayerId, FilterSpecification | null | undefined>>>,
+) {
+  LABEL_DENSITY_LAYER_IDS.forEach((id) => {
+    if (!map.getLayer(id)) return;
+    if (!(id in defaultFiltersRef.current)) {
+      defaultFiltersRef.current[id] = map.getFilter(id);
+    }
+    map.setFilter(id, is3D ? LABEL_DENSITY_FILTERS_3D[id] : defaultFiltersRef.current[id]);
   });
 }
 
