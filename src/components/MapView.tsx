@@ -3,12 +3,19 @@ import mapboxgl, { type FilterSpecification } from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Layers } from 'lucide-react';
 import { MAPBOX_TOKEN, RESORTS } from '@/data/resorts';
+import { SLOPE_LAYER_RESORT_IDS, SUN_SHADOW_LAYER_RESORT_IDS } from '@/data/terrainLayers';
 import type { Resort } from '@/types';
 import { useMapAtmosphere } from '@/hooks/useMapAtmosphere';
 
 interface MapViewProps {
   resorts: Resort[];
   activeId: string | null;
+  // Senast VALDA ortens Resort.id (kebab-case-slug, INTE namnet som activeId
+  // ovan bär, och INTE samma som App.tsx:s activeResort/detaljmodal-state).
+  // Till skillnad från modalens state nollställs den HÄR aldrig av att en
+  // modal stängs — bara av App.tsx:s isLanding-effekt. Styr vilken orts
+  // branthets-/sol-skugga-tiles som visas, se resolveTerrainResortId.
+  focusedResortId: string | null;
   onSelect: (resort: Resort) => void;
   flyTarget: { lat: number; lng: number; zoom?: number; nonce: number } | null;
   showSnowMap: boolean;
@@ -47,10 +54,38 @@ const RESORT_LAYER_IDS = ['clusters', 'cluster-count', 'unclustered-point'];
 const PIN_COLOR_DEFAULT = '#1d4ed8';
 const PIN_COLOR_ACTIVE = '#dc2626';
 
-// Branthetslager (pilot: Alpe d'Huez) — förberäknade tiles från Copernicus GLO-30,
-// hostade på Cloudflare R2. Se memory/pipeline-dokumentationen för hur tiles genereras.
-const SLOPE_TILE_URL = 'https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/slope-tiles/alpe-dhuez/{z}/{x}/{y}.png';
+// Branthetslager — förberäknade tiles från Copernicus GLO-30, hostade på
+// Cloudflare R2, en mapp per ort (se SLOPE_LAYER_RESORT_IDS i
+// @/data/terrainLayers för vilka orter som faktiskt har tiles). Se
+// memory/pipeline-dokumentationen för hur tiles genereras.
+function slopeTileUrl(resortId: string): string {
+  return `https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/slope-tiles/${resortId}/{z}/{x}/{y}.png`;
+}
 const SLOPE_ATTRIBUTION = 'produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved';
+
+// Om aktiv ort saknar tiles för lagret (eller ingen ort är vald) faller vi
+// tillbaka på den första tillgängliga orten i listan — källan behöver ALLTID
+// en giltig URL, men lagret är i det läget ändå dolt och togglen inaktiverad
+// (se disabled-läget i panelen), så vilken URL som faktiskt används spelar
+// ingen roll förrän en ort med data väljs.
+function resolveTerrainResortId(focusedResortId: string | null, availableIds: ReadonlySet<string>): string {
+  if (focusedResortId && availableIds.has(focusedResortId)) return focusedResortId;
+  const [fallback] = availableIds;
+  return fallback ?? '';
+}
+
+// Legend-färgerna för branthetslagret — MÅSTE matcha pipelinens
+// color-relief.txt exakt (gdaldem color-relief, se step4_color.py), annars
+// ljuger teckenförklaringen om vad tiles faktiskt visar. 0-14° har alpha 0
+// (helt genomskinlig) i själva kartan — `color: null` renderas som en tom,
+// streckad ruta i legend-swatchen istället för en osynlig bakgrund.
+const SLOPE_LEGEND = [
+  { label: '0–14°', color: null },
+  { label: '15–29°', color: '#FFFF00' },
+  { label: '30–34°', color: '#FFA500' },
+  { label: '35–45°', color: '#FF0000' },
+  { label: '46°+', color: '#A020F0' },
+] as const;
 
 // Sol/skugga-lager (pilot: Alpe d'Huez) — "tidsavstånd till övergång"-kartor,
 // förberäknade offline för 6 representativa datum (nov-apr) x 13 heltimmar
@@ -62,9 +97,9 @@ const SLOPE_ATTRIBUTION = 'produced using Copernicus WorldDEM-30 © DLR e.V. 201
 // att undvika hopp mellan diskreta lägen.
 const TIME_DISTANCE_HOUR_MIN = 6;
 const TIME_DISTANCE_HOUR_MAX = 18;
-function timeDistanceTileUrl(dateId: string, hour: number): string {
+function timeDistanceTileUrl(resortId: string, dateId: string, hour: number): string {
   const hh = String(hour).padStart(2, '0');
-  return `https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/time-distance-tiles/alpe-dhuez/${dateId}/${hh}/{z}/{x}/{y}.png`;
+  return `https://pub-6d13387d7dcb4d59b77f9bb88cb0858e.r2.dev/time-distance-tiles/${resortId}/${dateId}/${hh}/{z}/{x}/{y}.png`;
 }
 
 // Legend-färgerna för sol/skugga-lagret — MÅSTE matcha SUN_COLOR/SHADOW_COLOR/
@@ -259,7 +294,13 @@ const BASEMAP_COLOR_LAYERS: Array<{
   { id: 'waterway-shadow', prop: 'line-color', transform: waterTransform },
 ];
 
-export default function MapView({ resorts, activeId, onSelect, flyTarget, showSnowMap, onToggleSnowMap, resizeTrigger, isLanding }: MapViewProps) {
+export default function MapView({ resorts, activeId, focusedResortId, onSelect, flyTarget, showSnowMap, onToggleSnowMap, resizeTrigger, isLanding }: MapViewProps) {
+  // Om vald ort saknar data för lagret: togglen inaktiveras i panelen (se
+  // disabled/disabledTitle nedan) och används för att auto-nollställa
+  // toggle-state (effekterna längre ner) — annars kan en toggle bli kvar "på"
+  // men grå/dold när man byter till en ort utan tiles.
+  const slopeAvailable = focusedResortId !== null && SLOPE_LAYER_RESORT_IDS.has(focusedResortId);
+  const sunShadowAvailable = focusedResortId !== null && SUN_SHADOW_LAYER_RESORT_IDS.has(focusedResortId);
   // 2D är standardläget varje gång man navigerar in i kartvyn — 3D är en manuell toggle (knappen
   // nedan), inte något som ska aktiveras automatiskt.
   const [is3D, setIs3D] = useState(false);
@@ -281,6 +322,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const hiddenLayersRef = useRef<string[]>([]);
   const resortsRef = useRef<Resort[]>(resorts);
   const activeIdRef = useRef(activeId);
+  const focusedResortIdRef = useRef(focusedResortId);
   const onSelectRef = useRef(onSelect);
   const isLandingRef = useRef(isLanding);
   const showSnowMapRef = useRef(showSnowMap);
@@ -295,6 +337,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   const isInitialStyleRef = useRef(true);
   resortsRef.current = resorts;
   activeIdRef.current = activeId;
+  focusedResortIdRef.current = focusedResortId;
   onSelectRef.current = onSelect;
   isLandingRef.current = isLanding;
   showSnowMapRef.current = showSnowMap;
@@ -343,7 +386,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
         void initStyleDependentLayers(
           map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef,
           showSunShadowRef, timeDistanceBinsRef, selectedDateIdRef, hiddenLayersRef,
-          is3DRef, labelDensityDefaultFiltersRef,
+          is3DRef, labelDensityDefaultFiltersRef, focusedResortIdRef,
         ).then(() => {
           // Klick-/hover-lyssnarna registreras precis EN gång, här — de lever på
           // map-instansen (inte på lagren) och triggas bara när lagret med matchande
@@ -357,7 +400,7 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
             void initStyleDependentLayers(
               map, resortsRef, activeIdRef, isLandingRef, showSnowMapRef, showSlopeLayerRef,
               showSunShadowRef, timeDistanceBinsRef, selectedDateIdRef, hiddenLayersRef,
-              is3DRef, labelDensityDefaultFiltersRef,
+              is3DRef, labelDensityDefaultFiltersRef, focusedResortIdRef,
             );
           });
         });
@@ -429,27 +472,51 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
   // Slå av/på branthetslagret
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.getSource('slope-alpe-dhuez')) return;
+    if (!map || !map.getSource('slope-source')) return;
     map.setLayoutProperty('slope-layer', 'visibility', showSlopeLayer ? 'visible' : 'none');
   }, [showSlopeLayer]);
 
+  // Byt vilken orts branthets-tiles slope-källan pekar på, när aktiv ort
+  // ändras (t.ex. en annan ort väljs i sidopanelen). Källan kan inte peka om
+  // sina tiles i efterhand (samma begränsning som sol/skugga-binbytet nedan),
+  // så vi bygger om källa+lager via setSlopeSourceLayer.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.getSource('slope-source')) return;
+    setSlopeSourceLayer(map, resolveTerrainResortId(focusedResortId, SLOPE_LAYER_RESORT_IDS), showSlopeLayerRef.current);
+  }, [focusedResortId]);
+
+  // Om vald ort saknar branthetsdata: stäng av togglen automatiskt — annars
+  // kan den bli kvar "på" men grå/dold efter ett ortsbyte, förvirrande.
+  useEffect(() => {
+    if (!slopeAvailable) setShowSlopeLayer(false);
+  }, [slopeAvailable]);
+
   // Byt vilka två timbin (06-18) sol/skugga-lagren pekar på, när reglaget
-  // korsar en heltimmesgräns, ELLER när datumet växlas manuellt (bägge kräver
-  // en källswap eftersom tile-URL:en beror på både datum och timme). Om
-  // källorna ännu inte finns (t.ex. körs detta innan initial 'load') görs
-  // inget här — initStyleDependentLayers sätter då redan rätt bin vid
-  // skapandet, via timeDistanceBinsRef/selectedDateIdRef. timeDistanceBins.frac
-  // är AVSIKTLIGT inte en dependency — dess ändringar hanteras av den separata
-  // opacitetseffekten nedan, annars skulle en källswap triggas på varje liten
-  // reglagerörelse istället för bara vid en faktisk timmesgräns.
+  // korsar en heltimmesgräns, datumet växlas manuellt, ELLER aktiv ort ändras
+  // (alla tre kräver en källswap eftersom tile-URL:en beror på ort, datum OCH
+  // timme). Om källorna ännu inte finns (t.ex. körs detta innan initial
+  // 'load') görs inget här — initStyleDependentLayers sätter då redan rätt
+  // bin vid skapandet, via timeDistanceBinsRef/selectedDateIdRef/
+  // focusedResortIdRef. timeDistanceBins.frac är AVSIKTLIGT inte en
+  // dependency — dess ändringar hanteras av den separata opacitetseffekten
+  // nedan, annars skulle en källswap triggas på varje liten reglagerörelse
+  // istället för bara vid en faktisk timmesgräns.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.getSource('time-distance-source-a')) return;
     const { lowerHour, upperHour, frac } = timeDistanceBins;
-    setTimeDistanceBinLayer(map, 'time-distance-source-a', 'time-distance-layer-a', selectedDateId, lowerHour, 1 - frac, showSunShadowRef.current);
-    setTimeDistanceBinLayer(map, 'time-distance-source-b', 'time-distance-layer-b', selectedDateId, upperHour, frac, showSunShadowRef.current);
+    const resortId = resolveTerrainResortId(focusedResortId, SUN_SHADOW_LAYER_RESORT_IDS);
+    setTimeDistanceBinLayer(map, 'time-distance-source-a', 'time-distance-layer-a', resortId, selectedDateId, lowerHour, 1 - frac, showSunShadowRef.current);
+    setTimeDistanceBinLayer(map, 'time-distance-source-b', 'time-distance-layer-b', resortId, selectedDateId, upperHour, frac, showSunShadowRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeDistanceBins.lowerHour, timeDistanceBins.upperHour, selectedDateId]);
+  }, [timeDistanceBins.lowerHour, timeDistanceBins.upperHour, selectedDateId, focusedResortId]);
+
+  // Om vald ort saknar sol/skugga-data: stäng av togglen automatiskt, samma
+  // princip som branthet ovan.
+  useEffect(() => {
+    if (!sunShadowAvailable) setShowSunShadow(false);
+  }, [sunShadowAvailable]);
 
   // Korstona opaciteten mellan de två redan skapade timbinsen medan reglaget
   // dras inom samma binpar (ingen källbyte, bara raster-opacity).
@@ -594,12 +661,35 @@ export default function MapView({ resorts, activeId, onSelect, flyTarget, showSn
                 </div>
               </div>
               <CornerToggleRow label="Pistkarta (OpenSnowMap)" checked={showSnowMap} onChange={onToggleSnowMap} />
-              <CornerToggleRow label="Branthet" checked={showSlopeLayer} onChange={() => setShowSlopeLayer((v) => !v)} />
+              <div>
+                <CornerToggleRow
+                  label="Branthet"
+                  checked={showSlopeLayer}
+                  onChange={() => setShowSlopeLayer((v) => !v)}
+                  disabled={!slopeAvailable}
+                  disabledTitle={focusedResortId ? 'Ingen branthetsdata för den här orten ännu' : 'Välj en ort för att visa branthet'}
+                />
+                {showSlopeLayer && (
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                    {SLOPE_LEGEND.map((entry) => (
+                      <span key={entry.label} className="flex items-center gap-1 text-[10px] text-slate-500">
+                        <span
+                          className={`inline-block h-2.5 w-2.5 rounded-sm ${entry.color === null ? 'border border-dashed border-slate-300' : ''}`}
+                          style={entry.color === null ? undefined : { backgroundColor: entry.color }}
+                        />
+                        {entry.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div>
                 <CornerToggleRow
                   label="Sol/skugga"
                   checked={showSunShadow}
                   onChange={() => setShowSunShadow((v) => !v)}
+                  disabled={!sunShadowAvailable}
+                  disabledTitle={focusedResortId ? 'Ingen sol/skugga-data för den här orten ännu' : 'Välj en ort för att visa sol/skugga'}
                 />
                 {showSunShadow && (
                   <div className="mt-2 space-y-2">
@@ -685,18 +775,22 @@ function CornerToggleRow({
   return (
     <div className="flex items-center justify-between gap-2">
       <span className={`text-xs font-medium ${disabled ? 'text-slate-400' : 'text-slate-700'}`}>{label}</span>
-      <button
-        onClick={onChange}
-        disabled={disabled}
-        title={disabled ? disabledTitle : undefined}
-        aria-pressed={checked}
-        aria-disabled={disabled}
-        className={`relative h-5 w-9 shrink-0 rounded-full transition ${
-          disabled ? 'cursor-not-allowed bg-slate-200' : checked ? 'bg-blue-600' : 'bg-slate-300'
-        }`}
-      >
-        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
-      </button>
+      {/* title på en WRAPPER, inte på <button disabled> självt — Chrome/Chromium
+          (till skillnad från Firefox) triggar inte hover-tooltiper på disabled-
+          element överhuvudtaget, så title på knappen skulle tyst aldrig visas där. */}
+      <span title={disabled ? disabledTitle : undefined}>
+        <button
+          onClick={onChange}
+          disabled={disabled}
+          aria-pressed={checked}
+          aria-disabled={disabled}
+          className={`relative h-5 w-9 shrink-0 rounded-full transition ${
+            disabled ? 'cursor-not-allowed bg-slate-200' : checked ? 'bg-blue-600' : 'bg-slate-300'
+          }`}
+        >
+          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? 'left-[18px]' : 'left-0.5'}`} />
+        </button>
+      </span>
     </div>
   );
 }
@@ -719,6 +813,7 @@ function initStyleDependentLayers(
   hiddenLayersRef: MutableRefObject<string[]>,
   is3DRef: MutableRefObject<boolean>,
   labelDensityDefaultFiltersRef: MutableRefObject<Partial<Record<LabelDensityLayerId, FilterSpecification | null | undefined>>>,
+  focusedResortIdRef: MutableRefObject<string | null>,
 ): Promise<void> {
   // aerialway (liftarna) finns bara i vissa stilar — no-op om lagret saknas i den
   // aktuella stilen istället för att krascha.
@@ -785,43 +880,28 @@ function initStyleDependentLayers(
     },
   });
 
-  map.addSource('slope-alpe-dhuez', {
-    type: 'raster',
-    tiles: [SLOPE_TILE_URL],
-    tileSize: 256,
-    minzoom: 8,
-    // Tiles genereras bara t.o.m. z13 (se pipeline) — Mapbox overzoomar
-    // automatiskt (skalar upp z13-tiles) för högre zoom istället för att
-    // begära icke-existerande z14/z15-tiles.
-    maxzoom: 13,
-    attribution: SLOPE_ATTRIBUTION,
-  });
-  map.addLayer({
-    id: 'slope-layer',
-    type: 'raster',
-    source: 'slope-alpe-dhuez',
-    minzoom: 8,
-    layout: {
-      visibility: showSlopeLayerRef.current ? 'visible' : 'none',
-    },
-    paint: {
-      'raster-opacity': 0.7,
-    },
-  });
-
-  // Sol/skugga (pilot: Alpe d'Huez) — två av de 13 förberäknade timbinsen (för
-  // det valda datumet) visas samtidigt, korstonade via raster-opacity. Bin-
-  // bytet (när timeDistanceBins hoppar till nästa par, eller datumet växlas)
+  // Branthet — vilken orts tiles som visas beror på aktiv ort (se
+  // resolveTerrainResortId/SLOPE_LAYER_RESORT_IDS). Källbyte vid ortsbyte
   // hanteras separat i en MapView-effekt, precis som stilbyten hanteras här —
-  // den här funktionen sätter bara upp lagren med de bin/det datum som gäller
-  // just nu.
+  // den här funktionen sätter bara upp lagret med den ort som gäller just nu.
+  setSlopeSourceLayer(
+    map, resolveTerrainResortId(focusedResortIdRef.current, SLOPE_LAYER_RESORT_IDS), showSlopeLayerRef.current,
+  );
+
+  // Sol/skugga — två av de 13 förberäknade timbinsen (för det valda datumet
+  // och den valda orten) visas samtidigt, korstonade via raster-opacity. Bin-
+  // bytet (när timeDistanceBins hoppar till nästa par, datumet växlas, eller
+  // aktiv ort ändras) hanteras separat i en MapView-effekt, precis som
+  // stilbyten hanteras här — den här funktionen sätter bara upp lagren med de
+  // bin/det datum/den ort som gäller just nu.
   const { lowerHour, upperHour, frac: hourFrac } = timeDistanceBinsRef.current;
   const dateId = selectedDateIdRef.current;
+  const sunShadowResortId = resolveTerrainResortId(focusedResortIdRef.current, SUN_SHADOW_LAYER_RESORT_IDS);
   setTimeDistanceBinLayer(
-    map, 'time-distance-source-a', 'time-distance-layer-a', dateId, lowerHour, 1 - hourFrac, showSunShadowRef.current,
+    map, 'time-distance-source-a', 'time-distance-layer-a', sunShadowResortId, dateId, lowerHour, 1 - hourFrac, showSunShadowRef.current,
   );
   setTimeDistanceBinLayer(
-    map, 'time-distance-source-b', 'time-distance-layer-b', dateId, upperHour, hourFrac, showSunShadowRef.current,
+    map, 'time-distance-source-b', 'time-distance-layer-b', sunShadowResortId, dateId, upperHour, hourFrac, showSunShadowRef.current,
   );
 
   // Dölj etiketter/vägar direkt om startsidan är aktiv (både vid initial load och
@@ -867,15 +947,43 @@ function applyLayerVisibility(
   }
 }
 
-// Sätter (eller byter) vilket datum+timbin en av de två sol/skugga-lagren visar.
-// Mapbox raster-källor kan inte peka om sina tiles i efterhand, så ett bin-
-// eller datumbyte görs genom att ta bort och återskapa källa+lager — samma
-// mönster som mapStyle-bytet (map.setStyle) redan gör i stort, bara begränsat
-// till just de här två lagren.
+// Sätter (eller byter) vilken orts branthets-tiles slope-källan pekar på.
+// Samma remove+återskapa-mönster som setTimeDistanceBinLayer nedan, av samma
+// skäl (raster-källor kan inte peka om sina tiles i efterhand).
+function setSlopeSourceLayer(map: mapboxgl.Map, resortId: string, visible: boolean) {
+  if (map.getLayer('slope-layer')) map.removeLayer('slope-layer');
+  if (map.getSource('slope-source')) map.removeSource('slope-source');
+  map.addSource('slope-source', {
+    type: 'raster',
+    tiles: [slopeTileUrl(resortId)],
+    tileSize: 256,
+    minzoom: 8,
+    // Tiles genereras bara t.o.m. z13 (se pipeline) — Mapbox overzoomar
+    // automatiskt (skalar upp z13-tiles) för högre zoom istället för att
+    // begära icke-existerande z14/z15-tiles.
+    maxzoom: 13,
+    attribution: SLOPE_ATTRIBUTION,
+  });
+  map.addLayer({
+    id: 'slope-layer',
+    type: 'raster',
+    source: 'slope-source',
+    minzoom: 8,
+    layout: { visibility: visible ? 'visible' : 'none' },
+    paint: { 'raster-opacity': 0.7 },
+  });
+}
+
+// Sätter (eller byter) vilken ort/vilket datum+timbin en av de två
+// sol/skugga-lagren visar. Mapbox raster-källor kan inte peka om sina tiles i
+// efterhand, så ett ort-, bin- eller datumbyte görs genom att ta bort och
+// återskapa källa+lager — samma mönster som mapStyle-bytet (map.setStyle)
+// redan gör i stort, bara begränsat till just de här två lagren.
 function setTimeDistanceBinLayer(
   map: mapboxgl.Map,
   sourceId: string,
   layerId: string,
+  resortId: string,
   dateId: string,
   hour: number,
   opacity: number,
@@ -885,7 +993,7 @@ function setTimeDistanceBinLayer(
   if (map.getSource(sourceId)) map.removeSource(sourceId);
   map.addSource(sourceId, {
     type: 'raster',
-    tiles: [timeDistanceTileUrl(dateId, hour)],
+    tiles: [timeDistanceTileUrl(resortId, dateId, hour)],
     tileSize: 256,
     minzoom: 8,
     // Tiles genereras bara t.o.m. z13 (samma pipeline/mönster som branthet) —

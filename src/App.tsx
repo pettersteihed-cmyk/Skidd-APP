@@ -25,6 +25,13 @@ export default function App() {
 
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [activeResort, setActiveResort] = useState<Resort | null>(null);
+  // Vilken ort kartan är "fokuserad" på — till skillnad från activeResort (som styr
+  // detaljmodalen och nollställs när den stängs) ska den HÄR förbli satt tills
+  // användaren väljer en annan ort, så att t.ex. branthet/sol-skugga i MapView
+  // fortsätter fungera även efter att modalen stängts. Sätts i handleSelect, precis
+  // som activeResort, men bara nollställd av isLanding-effekten nedan — aldrig av
+  // ResortModals onClose.
+  const [focusedResortId, setFocusedResortId] = useState<string | null>(null);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; zoom?: number; nonce: number } | null>(null);
   const [showSnowMap, setShowSnowMap] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,9 +41,13 @@ export default function App() {
   useEffect(() => {
     setSidebarOpen(!isLanding);
     setResizeTrigger((n) => n + 1);
-    // OpenSnowMap-lagret ska alltid starta avstängt nästa gång man går in i kartvyn,
-    // oavsett vad det var satt till förra besöket — samma princip som is3D/branthet i MapView.
-    if (isLanding) setShowSnowMap(false);
+    // OpenSnowMap-lagret och fokuserad ort ska alltid börja om nästa gång man går in
+    // i kartvyn, oavsett vad de var satt till förra besöket — samma princip som
+    // is3D/branthet i MapView.
+    if (isLanding) {
+      setShowSnowMap(false);
+      setFocusedResortId(null);
+    }
   }, [isLanding]);
 
   const filtered = useMemo(() => {
@@ -54,6 +65,7 @@ export default function App() {
 
   const handleSelect = useCallback((resort: Resort) => {
     setActiveResort(resort);
+    setFocusedResortId(resort.id);
     setFlyTarget({ lat: resort.lat, lng: resort.lng, nonce: Date.now() });
   }, []);
 
@@ -103,6 +115,7 @@ export default function App() {
         <MapView
           resorts={filtered}
           activeId={activeResort?.name ?? null}
+          focusedResortId={focusedResortId}
           onSelect={handleSelect}
           flyTarget={flyTarget}
           showSnowMap={showSnowMap}
