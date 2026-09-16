@@ -1,5 +1,13 @@
 export interface Resort {
   name: string;
+  /**
+   * Stabilt, kort id (kebab-case, t.ex. "les-3-vallees") — det KANONISKA id:t definierat i
+   * "Orter"-fliken i skidorter_data-Excel-filen (se dess "Läs mig"-flik: "ÄNDRA INTE utan att
+   * också uppdatera i koden"). Samma värde som ort_id-kolumnen i Excelns "Snöhistorik"-flik
+   * och i snohistorik_export.csv. Används för att slå upp en orts data i
+   * src/data/snowHistory.ts. Byt bara om Excel-filens "Orter"-flik ändrar id för orten.
+   */
+  id: string;
   /** Land — tillagt inför framtida expansion till fler länder i Alperna (Schweiz, Österrike,
    * Italien m.fl.). Alla nuvarande orter är "Frankrike". Driver landfiltret i sidopanelen. */
   country: string;

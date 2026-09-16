@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X, Plane, Train, Clock, MapPin, CheckCircle2, ChevronDown,
   Ticket, BedDouble, Car, Package, ArrowUpRight, Calendar,
 } from 'lucide-react';
 import type { Resort } from '@/types';
 import MountainProfile from './MountainProfile';
+import { SNOW_HISTORY } from '@/data/snowHistory';
 
 interface ResortModalProps {
   resort: Resort | null;
@@ -14,36 +15,19 @@ interface ResortModalProps {
 export default function ResortModal({ resort, onClose }: ResortModalProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Tvåfas-scroll för headern i expanderat läge:
-  // Fas 1 — headern ligger i normalt dokumentflöde (osynlig "overlayTranslate"-state = null) och
-  // scrollar med resten som vanligt, precis som texten under.
-  // Fas 2 — triggas i onScroll när headern annars skulle glida ut ovanför kortets överkant (dess
-  // nederkant når toppen). Då tar en absolut positionerad "overlay"-kopia av headern över, animerad
-  // med en CSS-transition på transform: translateY — den låses i sin NUVARANDE (nästan bortscrollade)
-  // position först, och glider sedan mjukt ner till vila högst upp, istället för att hoppa dit direkt.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const [isHeaderStuck, setIsHeaderStuck] = useState(false);
-  // null = fas 1 (ingen overlay). Ett tal = fas 2, overlayns aktuella translateY i px (animeras mot 0).
-  const [overlayTranslate, setOverlayTranslate] = useState<number | null>(null);
-
-  const handleScroll = () => {
-    const scrollEl = scrollRef.current;
-    const headerEl = headerRef.current;
-    if (!scrollEl || !headerEl) return;
-    // "Bildens nederkant når modalens överkant" = vi har scrollat minst headerns egen höjd.
-    const stuck = scrollEl.scrollTop >= headerEl.offsetHeight;
-    if (stuck && !isHeaderStuck) {
-      // Just passerat tröskeln: lås overlayn på headerns NUVARANDE (nästan osynliga) position
-      // direkt (inget hopp), animera den sedan till 0 (vila högst upp) på nästa frame.
-      setOverlayTranslate(-scrollEl.scrollTop);
-      requestAnimationFrame(() => requestAnimationFrame(() => setOverlayTranslate(0)));
-    } else if (!stuck && isHeaderStuck) {
-      // Scrollat tillbaka upp under tröskeln: släpp overlayn, det vanliga flödet tar över igen.
-      setOverlayTranslate(null);
-    }
-    setIsHeaderStuck(stuck);
-  };
+  // Sticky-scroll för headern i expanderat läge: headern scrollar normalt med resten av
+  // innehållet tills bara HEADER_STICKY_VISIBLE_PX av dess höjd återstår synligt i modalens
+  // överkant — då fastnar den där (resterande innehåll fortsätter scrolla under) istället för
+  // att glida hela vägen ur synfältet. Ren CSS (position: sticky + ett negativt top-värde,
+  // se headerStickyTop nedan) istället för en JS-scrolllyssnare: sticky är till sin natur
+  // kontinuerlig och hopp-fri (webbläsaren interpolerar övergången självt), så ingen egen
+  // animations-/tröskellogik behövs — till skillnad från ett EARLIER-krav (nu ersatt) om att
+  // headern skulle scrolla helt ur synfältet och sedan glida tillbaka i sin HELHET, vilket
+  // position: sticky inte kan göra (sticky kan bara hålla kvar en kant, inte återintroducera
+  // ett element som redan scrollat förbi) och som därför krävde en manuell overlay-animation.
+  const HEADER_STICKY_VISIBLE_PX = 100;
+  const headerHeightPx = 288; // matchar headerBanner:s h-[288px] i expanderat läge
+  const headerStickyTop = HEADER_STICKY_VISIBLE_PX - headerHeightPx; // -188px
 
   useEffect(() => {
     if (!resort) return;
@@ -56,20 +40,12 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [resort, onClose, isExpanded]);
 
-  // Nollställ till kompakt läge när en ny ort öppnas (eller modalen stängs)
+  // Nollställ till kompakt läge när en ort öppnas (eller modalen stängs). Ingen egen
+  // reset behövs för sticky-headern längre — position: sticky återställer sig självt
+  // naturligt (den är ju bara CSS) varje gång man scrollar tillbaka upp eller stänger/öppnar.
   useEffect(() => {
     setIsExpanded(false);
-    setIsHeaderStuck(false);
-    setOverlayTranslate(null);
   }, [resort]);
-
-  // Nollställ fas 1 varje gång man går ur expanderat läge, så nästa expansion alltid börjar löst
-  useEffect(() => {
-    if (!isExpanded) {
-      setIsHeaderStuck(false);
-      setOverlayTranslate(null);
-    }
-  }, [isExpanded]);
 
   if (!resort) return null;
 
@@ -156,6 +132,11 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     ...(resort.season ? [{ key: 'season', icon: Calendar, label: 'Säsong', value: resort.season }] : []),
   ];
 
+  // Snöhistorik (expanderat läge) — döljs helt (ingen rubrik, inget "saknar data") om orten
+  // inte finns i SNOW_HISTORY, t.ex. en ort som ännu inte körts genom snöhistorik-exporten
+  // (se scripts/fetchSnowHistory.ts). Sorterad senaste säsong först, se snowHistory.ts.
+  const snowHistory = SNOW_HISTORY[resort.id];
+
   // Header-innehållet (bild/gradient, namn, badge) delas mellan kompakt läge, det normala
   // flödet i expanderat läge, och fas 2-overlayn — bara storlekar skiljer. Ingen egen ref/sticky-
   // logik här; det styrs av var/hur den här JSX:en placeras (se nedan).
@@ -241,30 +222,17 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
           </button>
         )}
 
-        {/* Fas 2-overlay — en fristående kopia av headern, absolut positionerad ovanpå allt annat
-            i kortet. Visas bara under och efter övergången (overlayTranslate !== null). Startar på
-            headerns nuvarande, nästan bortscrollade position (inget hopp) och CSS-transitionar sedan
-            transform till translateY(0) — en mjuk glidning till vila högst upp i stället för ett hopp. */}
-        {isExpanded && overlayTranslate !== null && (
-          <div
-            className="absolute left-0 right-0 top-0 z-20 transition-transform duration-300 ease-out"
-            style={{ transform: `translateY(${overlayTranslate}px)` }}
-          >
-            {headerBanner}
-          </div>
-        )}
-
         {/* Body — EN delad scroll för allt innehåll (bild + taggar + stat-grid + fördjupad info +
-            Affiliate Hub) i expanderat läge, precis som i kompakt läge, bara bredare. Headern ligger
-            som FÖRSTA barn i den scrollbara ytan och rör sig i normalt dokumentflöde (fas 1) tills
-            onScroll ovan aktiverar fas 2-overlayn — då göms den här in-flow-kopian (visibility) så
-            det aldrig syns två bilder samtidigt. Ingen kapslad/separat scroll för höger- eller
-            vänsterkolumnen — Affiliate Hub scrollar med som vanlig text istället för att kännas
-            fastlåst. */}
-        <div ref={scrollRef} onScroll={isExpanded ? handleScroll : undefined} className="flex-1 overflow-y-auto scrollbar-thin">
+            Affiliate Hub) i expanderat läge, precis som i kompakt läge, bara bredare. Headern
+            ligger som FÖRSTA barn i den scrollbara ytan med position: sticky (se headerStickyTop
+            ovan) — den scrollar normalt tills bara HEADER_STICKY_VISIBLE_PX återstår synligt,
+            fastnar sedan där medan resten av innehållet fortsätter scrolla under. Ingen kapslad/
+            separat scroll för höger- eller vänsterkolumnen — Affiliate Hub scrollar med som
+            vanlig text istället för att kännas fastlåst. */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
           {isExpanded ? (
             <>
-              <div ref={headerRef} style={overlayTranslate !== null ? { visibility: 'hidden' } : undefined}>
+              <div className="sticky z-10" style={{ top: `${headerStickyTop}px` }}>
                 {headerBanner}
               </div>
               <div className="grid grid-cols-[65%_35%] gap-6 px-6 py-5">
@@ -331,8 +299,10 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                       de 20px den frigör per sida läggs på Ruta 1/2 (flygplatsrutorna) — annars
                       radbryter "NÄST NÄRMASTE FLYGPLATS" i Ruta 2. Bredderna sätts av
                       .travel-tiles-grid i index.css (vanlig CSS, se kommentar där för varför inte
-                      en Tailwind arbitrary-value-klass användes). */}
-                  <div>
+                      en Tailwind arbitrary-value-klass användes). mb-5 eftersom Snöhistorik
+                      (om orten har data) kommer direkt under — annars är det sista sektionen
+                      i vänsterkolumnen och behöver ingen bottenmarginal. */}
+                  <div className="mb-5">
                     <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Resa &amp; praktiskt</h3>
                     <div className="travel-tiles-grid grid grid-cols-2 gap-2.5">
                       {airportTiles.map((t) => (
@@ -372,6 +342,54 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                       ))}
                     </div>
                   </div>
+
+                  {/* Snöhistorik — en riktig <table> med EN gemensam rubrikrad (Säsong/Snöfall/
+                      Max snödjup/Datum för max snödjup) istället för upprepade små etiketter per
+                      rad. table-fixed gör att de fyra kolumnerna delar bredden JÄMNT (ingen
+                      kolumn får extra utrymme baserat på sitt innehålls längd), så de sprider ut
+                      sig över hela sektionens bredd istället för att klumpa ihop sig mot höger
+                      kant. Alla rader ser likadana ut (ingen "bäst säsong"-markering). Senaste
+                      säsongen överst, se snowHistory.ts. Attribution-raden längst ner är ett
+                      licenskrav från Open-Meteo, inte valfri — visas alltid, även under
+                      gratis-nivå-utvecklingsfasen (se snowHistory.ts). */}
+                  {snowHistory && snowHistory.length > 0 && (
+                    <div>
+                      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Snöhistorik</h3>
+                      <div className="overflow-hidden rounded-xl border border-slate-100">
+                        <table className="w-full table-fixed text-sm">
+                          <thead>
+                            <tr className="bg-slate-50/60">
+                              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">Säsong</th>
+                              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">Snöfall</th>
+                              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">Max snödjup</th>
+                              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-400">Datum för max snödjup</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {snowHistory.map((s) => (
+                              <tr key={s.season} className="border-t border-slate-100">
+                                <td className="px-3 py-2 text-slate-700">{s.season}</td>
+                                <td className="px-3 py-2 font-bold text-slate-800">{s.totalSnowfallCm} cm</td>
+                                <td className="px-3 py-2 font-bold text-slate-800">{s.maxSnowDepthCm} cm</td>
+                                <td className="px-3 py-2 text-slate-600">{s.maxSnowDepthDate}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-400">
+                        Väderdata från{' '}
+                        <a
+                          href="https://open-meteo.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline hover:text-slate-600"
+                        >
+                          Open-Meteo.com
+                        </a>
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Höger kolumn — Affiliate Hub. Ingen egen scroll/positionering längre; den flyter
