@@ -8,4 +8,4 @@
 // Uppdatera manuellt (lägg till ortens id, se Resort.id i resorts.ts) varje
 // gång en ny ort får tiles genererade och uppladdade.
 export const SLOPE_LAYER_RESORT_IDS: ReadonlySet<string> = new Set(['alpe-dhuez', 'espace-san-bernardo']);
-export const SUN_SHADOW_LAYER_RESORT_IDS: ReadonlySet<string> = new Set(['alpe-dhuez']);
+export const SUN_SHADOW_LAYER_RESORT_IDS: ReadonlySet<string> = new Set(['alpe-dhuez', 'espace-san-bernardo']);
