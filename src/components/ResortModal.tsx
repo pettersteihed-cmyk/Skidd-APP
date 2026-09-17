@@ -167,7 +167,7 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
       )}
       <h2
         className={`absolute bottom-5 left-6 max-w-[60%] text-left font-bold leading-tight text-white drop-shadow-md ${
-          isExpanded ? 'text-[42px]' : 'text-lg'
+          isExpanded ? 'text-[42px]' : 'text-[26px]'
         }`}
       >
         {resort.name}
