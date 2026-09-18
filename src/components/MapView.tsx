@@ -76,15 +76,23 @@ function resolveTerrainResortId(focusedResortId: string | null, availableIds: Re
 
 // Legend-färgerna för branthetslagret — MÅSTE matcha pipelinens
 // color-relief.txt exakt (gdaldem color-relief, se step4_color.py), annars
-// ljuger teckenförklaringen om vad tiles faktiskt visar. 0-14° har alpha 0
+// ljuger teckenförklaringen om vad tiles faktiskt visar. 0-24° har alpha 0
 // (helt genomskinlig) i själva kartan — `color: null` renderas som en tom,
 // streckad ruta i legend-swatchen istället för en osynlig bakgrund.
+//
+// Lavinforskningsbaserad gradering (McCammon 2009/Perla), trösklar
+// 25/30/35/40/45/50°, ingen färg under 25°. 35–39° är den statistiska
+// toppzonen för lavinutlösning (mest mättat rött). 45–49° byter medvetet
+// hue (lila) för att signalera fallrisk snarare än lavinrisk vid dessa
+// vinklar. Antialiasing ±0,5° vid varje tröskel i pipelinen.
 const SLOPE_LEGEND = [
-  { label: '0–14°', color: null },
-  { label: '15–29°', color: '#FFFF00' },
-  { label: '30–34°', color: '#FFA500' },
-  { label: '35–45°', color: '#FF0000' },
-  { label: '46°+', color: '#A020F0' },
+  { label: '0–24°', color: null },
+  { label: '25–29°', color: '#FFD500' },
+  { label: '30–34°', color: '#FF8C00' },
+  { label: '35–39°', color: '#E30000' },
+  { label: '40–44°', color: '#8B0000' },
+  { label: '45–49°', color: '#6A0DAD' },
+  { label: '50°+', color: '#1A0A2E' },
 ] as const;
 
 // Sol/skugga-lager (pilot: Alpe d'Huez) — "tidsavstånd till övergång"-kartor,

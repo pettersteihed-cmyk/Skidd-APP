@@ -7,5 +7,10 @@
 //
 // Uppdatera manuellt (lägg till ortens id, se Resort.id i resorts.ts) varje
 // gång en ny ort får tiles genererade och uppladdade.
-export const SLOPE_LAYER_RESORT_IDS: ReadonlySet<string> = new Set(['alpe-dhuez', 'espace-san-bernardo']);
+export const SLOPE_LAYER_RESORT_IDS: ReadonlySet<string> = new Set([
+  'les-3-vallees', 'paradiski', 'tignes-val-disere', 'portes-du-soleil',
+  'le-grand-massif', 'les-sybelles', 'alpe-dhuez', 'les-deux-alpes',
+  'serre-chevalier', 'evasion-mont-blanc', 'chamonix', 'via-lattea',
+  'espace-san-bernardo', 'espace-diamant', 'val-cenis',
+]);
 export const SUN_SHADOW_LAYER_RESORT_IDS: ReadonlySet<string> = new Set(['alpe-dhuez', 'espace-san-bernardo']);
