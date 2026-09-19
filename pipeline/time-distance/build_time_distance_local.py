@@ -522,8 +522,22 @@ def tile_rgba(cfg: ResortConfig, rgba: np.ndarray, out_dir: str):
                         have_any = True
             if not have_any:
                 continue
-            avg = quad.reshape(TILE, 2, TILE, 2, 4).mean(axis=(1, 3))
-            tile_img = avg.astype(np.uint8)
+            # Alpha-viktat medelvärde för RGB, separat medelvärde för alpha.
+            # Ett rent 4-kanals-medelvärde blandar in transparenta (0,0,0,0)-
+            # pixlar utanför täckningsytan och ger mörk RGB på kantpixlar
+            # (t.ex. färg/4 vid alpha 41). Viktningen ger kantpixlar rätt
+            # färg med lägre alpha. Inre pixlar (lika alpha) är oförändrade.
+            blocks = quad.reshape(TILE, 2, TILE, 2, 4)
+            alpha_blocks = blocks[..., 3]
+            alpha_sum = alpha_blocks.sum(axis=(1, 3))
+            rgb_weighted = (blocks[..., :3] * alpha_blocks[..., None]).sum(axis=(1, 3))
+            rgb_avg = np.divide(
+                rgb_weighted, alpha_sum[..., None],
+                out=np.zeros_like(rgb_weighted), where=alpha_sum[..., None] > 0,
+            )
+            tile_img = np.empty((TILE, TILE, 4), dtype=np.uint8)
+            tile_img[..., :3] = rgb_avg.astype(np.uint8)
+            tile_img[..., 3] = alpha_blocks.mean(axis=(1, 3)).astype(np.uint8)
             cur[(px, py)] = tile_img
             d = f"{out_dir}/{z}/{px}"
             os.makedirs(d, exist_ok=True)
