@@ -157,28 +157,65 @@ def print_bbox_confirmation(cfg: ResortConfig):
 # --------------------------------------------------------------------------
 # DEM-hamtning och horisontberakning (endast for orter med generate_horizon=True)
 # --------------------------------------------------------------------------
-# Samma buffertstorlek (halva bredd/hojd i meter, UTM) som Alpe d'Huez raw
-# horisontraster faktiskt tacker (uppmatt fran horizon_raw/horizon_az0.tif:
-# bounds 714988-771088 x 4971194-5020424, dvs 56100 x 49230 m).
-BUFFER_HALF_WIDTH_M = 56100 / 2
-BUFFER_HALF_HEIGHT_M = 49230 / 2
-
-# Max sokavstand for HorizonAngle - vald sa att den ryms gott och val inom
-# bufferten (halva bredden ar ~28000 m) sa vi undviker kantartefakter dar
-# sokningen skulle ga utanfor den mosaikade DEM-ytan.
+# Max sokavstand for HorizonAngle.
 HORIZON_MAX_DIST_M = 20000.0
+
+# Sakerhetsmarginal utover sokavstandet - bufferns kant hamnar minst
+# HORIZON_MAX_DIST_M + BUFFER_SAFETY_MARGIN_M fran karnboxens mest
+# avlagsna kant, i varje riktning.
+BUFFER_SAFETY_MARGIN_M = 5000.0
+
+# TIDIGARE (fore 2026-09-22): fast buffert (56100 x 49230 m halva
+# bredd/hojd), uppmatt fran Alpe d'Huez befintliga horizon_raw-raster och
+# aterananvand oforandrad for alla orter oavsett karnboxens storlek. Den
+# rackte for La Rosiere (marginal ~16 km till karnboxens kant, se nedan)
+# men inte for flera av de 13 orterna i utrullningen (karnboxar storre an
+# Alpe d'Huez/La Rosiere pga OSM-baserad utvidgning) - upp till 13 km for
+# lite pa den varsta kanten, vilket hade gett kantartefakter i
+# horisontberakningen langs hela karnboxens perimeter. Bufferten beraknas
+# darfor nu per ort istallet for en global konstant.
+def _resort_buffer_bounds(cfg: ResortConfig):
+    """UTM-buffert (west, south, east, north) for en ort: centrerad pa
+    ortens punkt (cfg.lat/lng), stor nog att karnboxens mest avlagsna
+    kant fran punkten (i vardera riktningen separat, eftersom karnboxen
+    inte alltid ar symmetriskt centrerad pa punkten) fortfarande har
+    HORIZON_MAX_DIST_M + BUFFER_SAFETY_MARGIN_M kvar av sokradien
+    innanfor bufferten."""
+    with rasterio.Env():
+        # Punkten plus karnboxens fyra kanter, langs punktens egna
+        # lat/lng (inte kärnboxens hörn) - ger ratt UTM-avstand oavsett
+        # hur boxen ar forskjuten i forhallande till punkten.
+        from rasterio.warp import transform
+        lons = [cfg.lng, cfg.core_west, cfg.core_east, cfg.lng, cfg.lng]
+        lats = [cfg.lat, cfg.lat, cfg.lat, cfg.core_south, cfg.core_north]
+        xs, ys = transform("EPSG:4326", f"EPSG:{cfg.utm_epsg}", lons, lats)
+    cx, cy, x_w, x_e, y_s, y_n = xs[0], ys[0], xs[1], xs[2], ys[3], ys[4]
+    reach = HORIZON_MAX_DIST_M + BUFFER_SAFETY_MARGIN_M
+    half_w = max(abs(cx - x_w), abs(x_e - cx)) + reach
+    half_h = max(abs(cy - y_s), abs(y_n - cy)) + reach
+    bounds = (cx - half_w, cy - half_h, cx + half_w, cy + half_h)
+
+    # Sakerhetskontroll: stoppa hellre korningen an att bygga tiles med
+    # kantartefakter i horisontsokningen (se motivering ovan).
+    margins_m = {
+        "vast": (x_w - bounds[0]) - HORIZON_MAX_DIST_M,
+        "ost": (bounds[2] - x_e) - HORIZON_MAX_DIST_M,
+        "syd": (y_s - bounds[1]) - HORIZON_MAX_DIST_M,
+        "nord": (bounds[3] - y_n) - HORIZON_MAX_DIST_M,
+    }
+    worst_side, worst_margin = min(margins_m.items(), key=lambda kv: kv[1])
+    assert worst_margin >= 0, (
+        f"{cfg.resort_id}: bufferten tacker inte karnboxen + "
+        f"{HORIZON_MAX_DIST_M / 1000:.0f} km sokradie i alla riktningar "
+        f"(kortast marginal {worst_margin / 1000:.1f} km pa {worst_side}-kanten). "
+        f"Kantartefakter i horisontberakningen skulle uppsta - avbryter."
+    )
+    return bounds
 
 
 def utm_bbox_for_buffer(cfg: ResortConfig):
-    """Rortpunktens UTM-koordinat +- buffert -> (west, south, east, north) i UTM."""
-    with rasterio.Env():
-        # Enkel punktprojicering via rasterio.warp.transform (anvander samma
-        # inbyggda GDAL/PROJ som resten av rasterio - redan verifierad).
-        from rasterio.warp import transform
-        xs, ys = transform("EPSG:4326", f"EPSG:{cfg.utm_epsg}", [cfg.lng], [cfg.lat])
-    cx, cy = xs[0], ys[0]
-    return (cx - BUFFER_HALF_WIDTH_M, cy - BUFFER_HALF_HEIGHT_M,
-            cx + BUFFER_HALF_WIDTH_M, cy + BUFFER_HALF_HEIGHT_M)
+    """Rortpunktens UTM-koordinat +- ortens buffert -> (west, south, east, north) i UTM."""
+    return _resort_buffer_bounds(cfg)
 
 
 def required_dem_tiles(cfg: ResortConfig) -> list:
