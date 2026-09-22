@@ -44,6 +44,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import rasterio
+import rasterio.windows
 from rasterio.warp import reproject, Resampling, calculate_default_transform
 from PIL import Image
 
@@ -99,6 +100,14 @@ class ResortConfig:
 FIRST_SUN_DIR = "C:/Users/User1/AppData/Local/Temp/claude/C--Users-User1-Downloads-project-bolt-sb1-qfebkjhm-project/355540e2-9d89-4241-9e0b-4a3d14a4197b/scratchpad/first-sun"
 SESSION_WORK = "C:/Users/User1/AppData/Local/Temp/claude/C--Users-User1-Downloads-project-bolt-sb1-qfebkjhm-project/7f028cf8-1b7b-40cc-b6c2-406ca6cded93/scratchpad/time-distance-local"
 
+# Fast mapp for Copernicus DEM-tiles, utanfor Temp sa den overlever
+# omstart/scratchpad-stadning (se konversationen 2026-09-22). Ersatter de
+# gamla scratchpad-sokvagarna i KNOWN_DEM_TILES nedan.
+DEM_CACHE_DIR = "C:/Users/User1/geodata/copernicus-dem"
+
+# Mapp for UTM-masterrastren (en per zon, se build_utm_master_raster).
+DEM_MASTER_DIR = "C:/Users/User1/geodata"
+
 COPERNICUS_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
 
 
@@ -137,10 +146,20 @@ RESORTS = {
     ),
 }
 
-# Kanda befintliga DEM-tiles pa disk (fran branthets-piloten), aterananvands
-# istallet for att laddas ner igen.
+# Kanda befintliga DEM-tiles pa disk (DEM_CACHE_DIR), aterananvands istallet
+# for att laddas ner igen. Komplett 3x3-rektangel (N44-N46 x E005-E007) -
+# masterrastrets manuella mosaikning (radvis konkatenering, se
+# build_utm_master_raster) kraver samma antal tiles per breddgrad.
 KNOWN_DEM_TILES = {
-    "N45_00_E006_00": "C:/Users/User1/AppData/Local/Temp/claude/C--Users-User1-Downloads-project-bolt-sb1-qfebkjhm-project/4216b33b-98a3-4d8c-af10-f0904f0d0da6/scratchpad/slope-pilot/alpe-dhuez/dem/N45_00_E006_00.tif",
+    "N44_00_E005_00": f"{DEM_CACHE_DIR}/N44_00_E005_00.tif",
+    "N44_00_E006_00": f"{DEM_CACHE_DIR}/N44_00_E006_00.tif",
+    "N44_00_E007_00": f"{DEM_CACHE_DIR}/N44_00_E007_00.tif",
+    "N45_00_E005_00": f"{DEM_CACHE_DIR}/N45_00_E005_00.tif",
+    "N45_00_E006_00": f"{DEM_CACHE_DIR}/N45_00_E006_00.tif",
+    "N45_00_E007_00": f"{DEM_CACHE_DIR}/N45_00_E007_00.tif",
+    "N46_00_E005_00": f"{DEM_CACHE_DIR}/N46_00_E005_00.tif",
+    "N46_00_E006_00": f"{DEM_CACHE_DIR}/N46_00_E006_00.tif",
+    "N46_00_E007_00": f"{DEM_CACHE_DIR}/N46_00_E007_00.tif",
 }
 
 
@@ -220,7 +239,11 @@ def utm_bbox_for_buffer(cfg: ResortConfig):
 
 def required_dem_tiles(cfg: ResortConfig) -> list:
     """Rakna ut vilka 1x1-graders Copernicus-tiles som bufferten (i EPSG:4326)
-    faktiskt tacker, istallet for att anta ett hardkodat monster."""
+    faktiskt tacker, istallet for att anta ett hardkodat monster.
+
+    OBS: anvands INTE langre av build_utm_buffer_dem (se
+    build_utm_master_raster nedan, 2026-09-22) - kvar for referens/eventuell
+    framtida direkt-nedladdning per ort."""
     from rasterio.warp import transform
     west_utm, south_utm, east_utm, north_utm = utm_bbox_for_buffer(cfg)
     xs = [west_utm, east_utm, east_utm, west_utm]
@@ -242,6 +265,9 @@ def required_dem_tiles(cfg: ResortConfig) -> list:
 
 
 def ensure_dem_tiles(cfg: ResortConfig) -> list:
+    """OBS: anvands INTE langre av build_utm_buffer_dem (se
+    build_utm_master_raster nedan, 2026-09-22) - kvar for referens/eventuell
+    framtida direkt-nedladdning per ort."""
     os.makedirs(cfg.dem_local_dir, exist_ok=True)
     tile_ids = required_dem_tiles(cfg)
     print(f"  Kravda DEM-tiles: {tile_ids}")
@@ -265,13 +291,56 @@ def ensure_dem_tiles(cfg: ResortConfig) -> list:
     return paths
 
 
-def build_utm_buffer_dem(cfg: ResortConfig) -> str:
-    """Mosaikar DEM-tiles och reprojicerar till UTM-bufferten. Returnerar
-    sokvag till den skrivna UTM-GeoTIFF:en."""
-    dem_paths = ensure_dem_tiles(cfg)
-    os.makedirs(cfg.work_dir, exist_ok=True)
-    mosaic_path = f"{cfg.work_dir}/dem_mosaic_4326.tif"
-    utm_path = f"{cfg.work_dir}/dem_buffer_utm{cfg.utm_epsg}.tif"
+# --------------------------------------------------------------------------
+# EN masterraster per UTM-zon istallet for en ny reprojicering per ort.
+#
+# Undersokning 2026-09-22 (se konversationen): rasterio.warp.reproject() ar
+# INTE bit-exakt reproducerbar nar malarrayens overgripande storlek andras,
+# aven med identisk kalldata och identiskt malrutnat (fas+pixelstorlek) pa
+# den overlappande delen - median ~0.1-0.3 m DEM-hojdskillnad, aven langt
+# fran nagon buffertkant. Uteslutet som orsak: tolerance (0.0 vs standard
+# 0.125), warp_mem_limit, num_threads, XSCALE/YSCALE, flera PROJ/OGR-
+# installningar, WarpedVRT vs reproject(), samt chunkad omprojicering (gav
+# INTE mindre avvikelse - snarare likvardig). Den ENDA kombination som gav
+# bit-exakt (0.000000) matchning var en enda reproject()-anrop med EXAKT
+# samma malarray-dimensioner som en tidigare korning.
+#
+# Losning: reprojicera DEM-mosaiken EN GANG per UTM-zon till en fast
+# masterraster (rutnat last till jamna 30 m fran UTM (0,0)), sparad i
+# DEM_MASTER_DIR (aterananvands om den redan finns). Varje ort klipper sedan
+# ut sin buffert som ett rent fonster (numpy-slice, ingen omprojicering) ur
+# masterrastret - identiskt for alla buffertstorlekar per konstruktion,
+# eftersom det ar samma underliggande pixeldata som las. Verifierat:
+# La Rosiere byggd med gamla resp. nya bufferstorleken ur samma masterraster
+# gav 0 avvikande pixlar bortom 20 km fran gamla buffertkanten (503 av
+# 245 miljoner totalt, samtliga inom 15.9-18.0 km fran kanten - forvantad
+# sokradie-kanslighet, inte brus).
+# --------------------------------------------------------------------------
+GRID_STEP_M = 30.0  # samma pixelstorlek som tidigare (Copernicus GLO-30 nativ)
+
+
+def _snap_to_zero_lattice(value: float, direction: str) -> float:
+    """Rundar `value` till narmaste multipel av GRID_STEP_M rakt fran UTM
+    (0,0) - "down" rundar nedat/vasterut/soderut (utvidgar tackningen at det
+    hallet), "up" uppat/osterut/norrut. Ort-oberoende fas, sa alla orter i en
+    zon delar exakt samma rutnat."""
+    k = value / GRID_STEP_M
+    k = math.floor(k) if direction == "down" else math.ceil(k)
+    return k * GRID_STEP_M
+
+
+def build_utm_master_raster(utm_epsg: int) -> str:
+    """Mosaikar ALLA kanda DEM-tiles (KNOWN_DEM_TILES) och reprojicerar dem
+    EN GANG till en masterraster i EPSG:{utm_epsg}, rutnat last till jamna
+    30 m fran UTM (0,0). Sparas i DEM_MASTER_DIR (aterananvands om filen
+    redan finns) - se motivering ovan."""
+    master_path = f"{DEM_MASTER_DIR}/dem-utm{utm_epsg}-master.tif"
+    if os.path.exists(master_path):
+        return master_path
+
+    os.makedirs(DEM_MASTER_DIR, exist_ok=True)
+    mosaic_path = f"{DEM_MASTER_DIR}/_dem_mosaic_4326_master.tif"
+    dem_paths = sorted(set(KNOWN_DEM_TILES.values()))
 
     if not os.path.exists(mosaic_path):
         # rasterio.merge.merge() kraschar (native krasch, ingen Python-
@@ -283,7 +352,7 @@ def build_utm_buffer_dem(cfg: ResortConfig) -> str:
         for p in dem_paths:
             with rasterio.open(p) as ds:
                 tiles_meta.append({
-                    "path": p, "arr": ds.read(1), "west": ds.bounds.left,
+                    "arr": ds.read(1), "west": ds.bounds.left,
                     "north": ds.bounds.top, "transform": ds.transform,
                     "meta": ds.meta.copy(),
                 })
@@ -309,32 +378,84 @@ def build_utm_buffer_dem(cfg: ResortConfig) -> str:
         })
         with rasterio.open(mosaic_path, "w", **meta) as dst:
             dst.write(mosaic_arr, 1)
-        print(f"  DEM-mosaik skriven (manuell sammanfogning): {mosaic_path}")
+        print(f"  DEM-mastermosaik skriven (manuell sammanfogning): {mosaic_path}")
 
-    if not os.path.exists(utm_path):
-        west, south, east, north = utm_bbox_for_buffer(cfg)
-        with rasterio.open(mosaic_path) as src:
-            dst_crs = f"EPSG:{cfg.utm_epsg}"
-            # Fast pixelstorlek 30 m (Copernicus GLO-30 nativ upplosning) i
-            # malprojektionen, sa vi inte rakar uppskala/nedskala i onodan.
-            width = int(round((east - west) / 30.0))
-            height = int(round((north - south) / 30.0))
-            dst_transform = rasterio.transform.from_bounds(west, south, east, north, width, height)
-            meta = src.meta.copy()
-            meta.update({
-                "crs": dst_crs, "transform": dst_transform,
-                "width": width, "height": height, "nodata": -32768.0,
-            })
-            with rasterio.open(utm_path, "w", **meta) as dst:
-                reproject(
-                    source=rasterio.band(src, 1),
-                    destination=rasterio.band(dst, 1),
-                    src_transform=src.transform, src_crs=src.crs,
-                    dst_transform=dst_transform, dst_crs=dst_crs,
-                    resampling=Resampling.bilinear,
-                    src_nodata=src.nodata, dst_nodata=-32768.0,
-                )
-        print(f"  DEM-buffert reprojicerad till UTM{cfg.utm_epsg}: {utm_path}")
+    dst_crs = f"EPSG:{utm_epsg}"
+    with rasterio.open(mosaic_path) as src:
+        # Grov uppskattning av UTM-utbredning via kallans horn, snappas
+        # sedan utat till 30 m-natet fran (0,0) - exakt grans spelar ingen
+        # roll har, bara att den TACKER hela mosaiken med marginal.
+        from rasterio.warp import transform as warp_transform
+        lons = [src.bounds.left, src.bounds.right, src.bounds.left, src.bounds.right]
+        lats = [src.bounds.bottom, src.bounds.bottom, src.bounds.top, src.bounds.top]
+        xs, ys = warp_transform(src.crs, dst_crs, lons, lats)
+        west = _snap_to_zero_lattice(min(xs) - 1000, "down")
+        east = _snap_to_zero_lattice(max(xs) + 1000, "up")
+        south = _snap_to_zero_lattice(min(ys) - 1000, "down")
+        north = _snap_to_zero_lattice(max(ys) + 1000, "up")
+        width = round((east - west) / GRID_STEP_M)
+        height = round((north - south) / GRID_STEP_M)
+        dst_transform = rasterio.transform.from_origin(west, north, GRID_STEP_M, GRID_STEP_M)
+        print(f"  Masterraster UTM{utm_epsg}: W{west:.0f} S{south:.0f} E{east:.0f} N{north:.0f} "
+              f"({width}x{height} px, exakt {GRID_STEP_M} m, rutnat last mot (0,0))")
+        meta = src.meta.copy()
+        meta.update({
+            "crs": dst_crs, "transform": dst_transform,
+            "width": width, "height": height, "nodata": -32768.0,
+        })
+        with rasterio.open(master_path, "w", **meta) as dst:
+            # Samma omsamplingsmetod som tidigare (bilinjar).
+            reproject(
+                source=rasterio.band(src, 1),
+                destination=rasterio.band(dst, 1),
+                src_transform=src.transform, src_crs=src.crs,
+                dst_transform=dst_transform, dst_crs=dst_crs,
+                resampling=Resampling.bilinear,
+                src_nodata=src.nodata, dst_nodata=-32768.0,
+            )
+    print(f"  Masterraster klar: {master_path}")
+    return master_path
+
+
+def build_utm_buffer_dem(cfg: ResortConfig) -> str:
+    """Klipper ut ortens buffert ur masterrastret - ren fonster-lasning
+    (numpy-slice), ingen omprojicering. Returnerar sokvag till den skrivna
+    UTM-GeoTIFF:en (samma kontrakt/filnamn som tidigare)."""
+    master_path = build_utm_master_raster(cfg.utm_epsg)
+    os.makedirs(cfg.work_dir, exist_ok=True)
+    utm_path = f"{cfg.work_dir}/dem_buffer_utm{cfg.utm_epsg}.tif"
+    if os.path.exists(utm_path):
+        return utm_path
+
+    west, south, east, north = utm_bbox_for_buffer(cfg)
+    # Snappa buffertfonstret utat till masterrastrets rutnat (last mot
+    # (0,0)) sa fonstret hamnar pa exakta pixelgranser och tacker minst den
+    # begarda bufferten.
+    west_s = _snap_to_zero_lattice(west, "down")
+    east_s = _snap_to_zero_lattice(east, "up")
+    south_s = _snap_to_zero_lattice(south, "down")
+    north_s = _snap_to_zero_lattice(north, "up")
+
+    with rasterio.open(master_path) as src:
+        # rasterio.windows.from_bounds()/.transform() kraschar tyst (exit
+        # 127, ingen traceback) i den har miljon - samma kanda BLAS/LAPACK-
+        # relaterade krasch som np.matmul/np.dot/np.linalg.pinv (se
+        # konversationen). Bygger fonstret for hand med Affine-inversion
+        # istallet (ren Python-aritmetik, kraschar inte).
+        inv = ~src.transform
+        col0, row0 = inv * (west_s, north_s)
+        col1, row1 = inv * (east_s, south_s)
+        col0, row0, col1, row1 = round(col0), round(row0), round(col1), round(row1)
+        window = rasterio.windows.Window(col0, row0, col1 - col0, row1 - row0)
+        arr = src.read(1, window=window)
+        win_transform = rasterio.transform.from_origin(west_s, north_s, GRID_STEP_M, GRID_STEP_M)
+        meta = src.meta.copy()
+        meta.update({
+            "height": arr.shape[0], "width": arr.shape[1], "transform": win_transform,
+        })
+        with rasterio.open(utm_path, "w", **meta) as dst:
+            dst.write(arr, 1)
+    print(f"  DEM-buffert klippt ur masterraster (ingen omprojicering): {utm_path}")
     return utm_path
 
 
