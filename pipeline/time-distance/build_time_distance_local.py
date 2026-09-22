@@ -108,6 +108,11 @@ DEM_CACHE_DIR = "C:/Users/User1/geodata/copernicus-dem"
 # Mapp for UTM-masterrastren (en per zon, se build_utm_master_raster).
 DEM_MASTER_DIR = "C:/Users/User1/geodata"
 
+# Arbetsmapp for utrullningen till de 13 aterstaende orterna (se
+# konversationen 2026-09-19/22). Bbox per ort = union(branthetslagrets bbox,
+# OSM aerialway-utbredning + ~1 km), avrundad utat till 0.001 grader.
+ROLLOUT_WORK = "C:/Users/User1/AppData/Local/Temp/claude/C--Users-User1-Downloads-project-bolt-sb1-qfebkjhm-project/021da3f7-570d-4677-b02b-770d84328a4b/scratchpad/time-distance-rollout"
+
 COPERNICUS_BASE = "https://copernicus-dem-30m.s3.amazonaws.com"
 
 
@@ -143,6 +148,125 @@ RESORTS = {
         dem_tiles=[],  # fylls i av ensure_dem_tiles() baserat pa beraknad buffert
         dem_local_dir=f"{SESSION_WORK}/espace-san-bernardo/dem",
         generate_horizon=True,
+    ),
+
+    # ------------------------------------------------------------------
+    # De 13 aterstaende orterna (utrullning, se konversationen 2026-09-19
+    # och 2026-09-22). Bbox = union(branthetslagrets bbox, OSM
+    # aerialway-utbredning + ~1 km marginal), avrundad utat till 0.001
+    # grader. Alla ligger solitt oster om 6E (les-deux-alpes bbox nuddar
+    # 5.996, dvs ~0.3 km in i zon 31N - forsumbart, samma resonemang som
+    # for espace-san-bernardo). generate_horizon=True: horisontbinsen
+    # finns inte sedan tidigare, DEM-tiles aterananvands via
+    # KNOWN_DEM_TILES/DEM_CACHE_DIR nedan.
+    # ------------------------------------------------------------------
+    "les-3-vallees": ResortConfig(
+        resort_id="les-3-vallees", lat=45.298, lng=6.580,
+        core_west=6.455, core_south=45.198, core_east=6.705, core_north=45.460,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/les-3-vallees/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/les-3-vallees",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "paradiski": ResortConfig(
+        resort_id="paradiski", lat=45.572, lng=6.780,
+        core_west=6.617, core_south=45.446, core_east=6.905, core_north=45.645,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/paradiski/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/paradiski",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "tignes-val-disere": ResortConfig(
+        resort_id="tignes-val-disere", lat=45.468, lng=6.905,
+        core_west=6.780, core_south=45.395, core_east=7.080, core_north=45.541,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/tignes-val-disere/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/tignes-val-disere",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "portes-du-soleil": ResortConfig(
+        resort_id="portes-du-soleil", lat=46.192, lng=6.772,
+        # Vastkanten stannar vid 6.619 - Saint-Jean-d'Aulps (separat OSM-
+        # kluster) exkluderas medvetet (beslut 2026-09-22).
+        core_west=6.619, core_south=46.119, core_east=6.897, core_north=46.320,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/portes-du-soleil/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/portes-du-soleil",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "le-grand-massif": ResortConfig(
+        resort_id="le-grand-massif", lat=46.006, lng=6.691,
+        core_west=6.566, core_south=45.933, core_east=6.816, core_north=46.091,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/le-grand-massif/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/le-grand-massif",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "les-sybelles": ResortConfig(
+        resort_id="les-sybelles", lat=45.239, lng=6.269,
+        core_west=6.144, core_south=45.166, core_east=6.394, core_north=45.312,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/les-sybelles/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/les-sybelles",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "les-deux-alpes": ResortConfig(
+        resort_id="les-deux-alpes", lat=45.008, lng=6.121,
+        core_west=5.996, core_south=44.935, core_east=6.250, core_north=45.081,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/les-deux-alpes/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/les-deux-alpes",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "serre-chevalier": ResortConfig(
+        resort_id="serre-chevalier", lat=44.933, lng=6.586,
+        core_west=6.461, core_south=44.860, core_east=6.711, core_north=45.006,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/serre-chevalier/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/serre-chevalier",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "evasion-mont-blanc": ResortConfig(
+        resort_id="evasion-mont-blanc", lat=45.857, lng=6.617,
+        core_west=6.492, core_south=45.763, core_east=6.776, core_north=45.930,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/evasion-mont-blanc/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/evasion-mont-blanc",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "chamonix": ResortConfig(
+        resort_id="chamonix", lat=45.923, lng=6.869,
+        core_west=6.737, core_south=45.850, core_east=6.994, core_north=46.052,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/chamonix/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/chamonix",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "via-lattea": ResortConfig(
+        resort_id="via-lattea", lat=44.931, lng=6.722,
+        # Hela systemet (beslut 2026-09-22): inkl. Sestriere, Sauze
+        # d'Oulx, Sansicario, Claviere pa italienska sidan.
+        core_west=6.597, core_south=44.858, core_east=6.973, core_north=45.035,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/via-lattea/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/via-lattea",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "espace-diamant": ResortConfig(
+        resort_id="espace-diamant", lat=45.759, lng=6.536,
+        core_west=6.411, core_south=45.686, core_east=6.661, core_north=45.843,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/espace-diamant/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/espace-diamant",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
+    ),
+    "val-cenis": ResortConfig(
+        resort_id="val-cenis", lat=45.281, lng=6.900,
+        core_west=6.775, core_south=45.208, core_east=7.025, core_north=45.354,
+        utm_epsg=32632,
+        horizon_raw_dir=f"{ROLLOUT_WORK}/val-cenis/horizon_raw",
+        work_dir=f"{ROLLOUT_WORK}/val-cenis",
+        dem_tiles=[], dem_local_dir=DEM_CACHE_DIR, generate_horizon=True,
     ),
 }
 
