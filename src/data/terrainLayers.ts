@@ -13,4 +13,8 @@ export const SLOPE_LAYER_RESORT_IDS: ReadonlySet<string> = new Set([
   'serre-chevalier', 'evasion-mont-blanc', 'chamonix', 'via-lattea',
   'espace-san-bernardo', 'espace-diamant', 'val-cenis',
 ]);
-export const SUN_SHADOW_LAYER_RESORT_IDS: ReadonlySet<string> = new Set(['alpe-dhuez', 'espace-san-bernardo']);
+export const SUN_SHADOW_LAYER_RESORT_IDS: ReadonlySet<string> = new Set([
+  'alpe-dhuez', 'espace-san-bernardo', 'les-3-vallees', 'paradiski', 'tignes-val-disere',
+  'portes-du-soleil', 'le-grand-massif', 'les-sybelles', 'les-deux-alpes', 'serre-chevalier',
+  'evasion-mont-blanc', 'chamonix', 'via-lattea', 'espace-diamant', 'val-cenis',
+]);
