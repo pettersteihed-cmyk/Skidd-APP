@@ -71,9 +71,24 @@ export interface Resort {
    * Skidsystemet-sektionen. Just nu platshållar-URL:er för alla orter tills riktiga länkar finns.
    */
   pisteMapPdfUrl?: string;
+  // Fält inför AI-chatten — valfria tills de är ifyllda för orterna.
+  offpistTillgang?: OffpistTillgang[];
+  offpistNiva?: Betyg1Till5;
+  offpistNote?: string;
+  glaciarakning?: boolean;
+  guideverksamhet?: boolean;
+  boendeTyper?: BoendeTyp[];
+  nyborjarvanlig?: Betyg1Till5;
 }
 
 export type PriceLevel = '$' | '$$' | '$$$' | '$$$$';
+
+export type OffpistTillgang = 'liftnara' | 'kort-stigning' | 'turakning' | 'guide-kravs';
+
+export type BoendeTyp = 'by' | 'lagenhetsort' | 'lyx' | 'budget';
+
+/** Heltalsbetyg 1–5. */
+export type Betyg1Till5 = 1 | 2 | 3 | 4 | 5;
 
 export interface Filters {
   maxTransfer: number;
