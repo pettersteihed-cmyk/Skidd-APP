@@ -129,6 +129,10 @@ Bbox per ny ort = union(branthetslagrets bbox, OSM aerialway-utbredning +
   lavinterräng (branthet, sol/skugga, offpistdata) utan text om att
   informationen är vägledande och att åkaren själv ansvarar för sina val.
   Behövs vid lagerknapparna, i AI-chatten och som egna villkor.
+- **Offpistdatan i `docs/offpist-underlag.xlsx`** (nivåspann, ja/nej-fält och
+  offpistNote för alla 15 orter) har ingen verifierad källa - kolumnen kalla
+  på Anteckningar-bladet är tom. Texterna bör granskas mot ortens egen
+  information eller en guidebyrå innan de används i produktion.
 
 ---
 
