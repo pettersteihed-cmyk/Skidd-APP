@@ -6,9 +6,10 @@ import Sidebar from '@/components/Sidebar';
 import ResortModal from '@/components/ResortModal';
 import LandingPage from '@/pages/LandingPage';
 import { RESORTS } from '@/data/resorts';
+import { nearestAirport } from '@/utils/transfer';
 import type { Filters, Resort } from '@/types';
 
-const MAX_TRANSFER_DEFAULT = Math.max(...RESORTS.map((r) => r.transferMin));
+const MAX_TRANSFER_DEFAULT = Math.max(...RESORTS.map((r) => nearestAirport(r).transferMin));
 
 const DEFAULT_FILTERS: Filters = {
   maxTransfer: MAX_TRANSFER_DEFAULT,
@@ -53,7 +54,7 @@ export default function App() {
   const filtered = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
     return RESORTS.filter((r) => {
-      if (r.transferMin > filters.maxTransfer) return false;
+      if (nearestAirport(r).transferMin > filters.maxTransfer) return false;
       if (filters.priceLevels.length > 0 && !filters.priceLevels.includes(r.price)) return false;
       if (filters.countries.length > 0 && !filters.countries.includes(r.country)) return false;
       if (filters.trainOnly && !r.train) return false;

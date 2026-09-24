@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Train, Snowflake, Clock, Tag, ChevronDown, Globe } from 'lucide-react';
 import type { Filters, PriceLevel, Resort } from '@/types';
+import { nearestAirport, shortAirportName } from '@/utils/transfer';
 
 interface SidebarProps {
   filters: Filters;
@@ -45,7 +46,7 @@ function AccordionSection({ title, isOpen, onToggle, children }: AccordionSectio
 const PRICE_LEVELS: PriceLevel[] = ['$', '$$', '$$$', '$$$$'];
 
 export default function Sidebar({ filters, setFilters, resorts, allResorts, activeId, onSelect }: SidebarProps) {
-  const maxTransferRange = Math.max(...allResorts.map((r) => r.transferMin));
+  const maxTransferRange = Math.max(...allResorts.map((r) => nearestAirport(r).transferMin));
   const maxPisteRange = Math.max(...allResorts.map((r) => r.pisteKm));
   // Länder härledda från datan (inte hårdkodade) — filtret följer automatiskt med om/när fler
   // länder än Frankrike läggs till i resorts.ts.
@@ -292,7 +293,9 @@ export default function Sidebar({ filters, setFilters, resorts, allResorts, acti
                         <span className="text-slate-300">•</span>
                         <span>{resort.pisteKm} km pist</span>
                         <span className="text-slate-300">•</span>
-                        <span>{resort.transferMin} min</span>
+                        <span>
+                          {nearestAirport(resort).transferMin} min ({shortAirportName(nearestAirport(resort).name)})
+                        </span>
                         {resort.train && (
                           <>
                             <span className="text-slate-300">•</span>

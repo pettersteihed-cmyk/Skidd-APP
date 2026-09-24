@@ -6,6 +6,7 @@ import {
 import type { Resort } from '@/types';
 import MountainProfile from './MountainProfile';
 import { SNOW_HISTORY } from '@/data/snowHistory';
+import { airportsByTransfer } from '@/utils/transfer';
 
 interface ResortModalProps {
   resort: Resort | null;
@@ -49,6 +50,11 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
 
   if (!resort) return null;
 
+  // Alla flygplatser sorterade på transfertid, kortast först — så att "närmaste flygplats" i
+  // kompakt läge och Ruta 1/2 i expanderat läge alltid visar samma flygplats med rätt tid
+  // (den förstlistade i datan är inte alltid den närmaste, t.ex. Val Cenis).
+  const allAirports = airportsByTransfer(resort);
+
   // Kompakt läge — tre kolumner, två staplade värden per kolumn (label överst i liten grå
   // versal text, värde i fetstil under), samma stil som kolumnerna i expanderat lägets
   // "Skidsystemet"-sektion (se MountainProfile.tsx). Varje kolumn är EN gemensam ljusgrå
@@ -71,8 +77,8 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     {
       key: 'travel',
       rows: [
-        { label: 'Närmaste flygplats', value: resort.airport },
-        { label: 'Transfertid', value: `${resort.transferMin} min` },
+        { label: 'Närmaste flygplats', value: allAirports[0].name },
+        { label: 'Transfertid', value: `${allAirports[0].transferMin} min` },
       ],
     },
   ];
@@ -95,13 +101,6 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
     { key: 'blue', label: 'Blå', km: Math.round((resort.pisteKm * pc.blue) / 100), dot: 'bg-blue-500' },
     { key: 'red', label: 'Röd', km: Math.round((resort.pisteKm * pc.red) / 100), dot: 'bg-red-500' },
     { key: 'black', label: 'Svart', km: Math.round((resort.pisteKm * pc.black) / 100), dot: 'bg-slate-900' },
-  ];
-
-  // Den första flygplatsen är alltid resort.airport/transferMin; additionalAirports (om någon ort
-  // någonsin får fler) läggs på efter.
-  const allAirports = [
-    { name: resort.airport, transferMin: resort.transferMin },
-    ...(resort.additionalAirports ?? []),
   ];
 
   // "Resa & praktiskt" (expanderat läge) — logistik: flygplats(er) med transfertid, tåg, säsong.

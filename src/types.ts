@@ -61,8 +61,9 @@ export interface Resort {
   /** Säsongsperiod (t.ex. "December–april") till "Praktisk info". Visas bara om satt. */
   season?: string;
   /**
-   * Ytterligare flygplatser utöver `airport`/`transferMin` (som alltid räknas som den första).
-   * "Praktisk info" listar alla. Ingen ort har detta ifyllt ännu.
+   * Ytterligare flygplatser utöver `airport`/`transferMin` (som listas först i datan).
+   * "Praktisk info" listar alla. Ifyllt för alla 15 orter (en extra flygplats per ort). Den
+   * förstlistade är inte alltid den närmaste — använd `nearestAirport` (src/utils/transfer.ts).
    */
   additionalAirports?: { name: string; transferMin: number }[];
   /**
