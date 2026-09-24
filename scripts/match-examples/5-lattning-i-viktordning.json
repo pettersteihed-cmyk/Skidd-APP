@@ -1,0 +1,39 @@
+{
+  "beskrivning": "Kort transfer (75 min), billigt ($$) och minst 300 km. Ingen ort klarar allt. pistKm har lägst vikt och lättas först (ända till 0, räcker inte), sedan pris (vikt 2) tills tre orter finns. transfer (vikt 3) rörs inte.",
+  "filter": {
+    "maxTransferMin": 75,
+    "priceMax": "$$",
+    "minPisteKm": 300
+  },
+  "weights": {
+    "transfer": 3,
+    "pris": 2,
+    "pistKm": 1,
+    "offpist": 1
+  },
+  "expect": {
+    "top3": [
+      "le-grand-massif",
+      "evasion-mont-blanc",
+      "chamonix"
+    ],
+    "relaxed": [
+      {
+        "filter": "minPisteKm",
+        "from": 300,
+        "to": 0
+      },
+      {
+        "filter": "priceMax",
+        "from": "$$",
+        "to": "$$$$"
+      }
+    ],
+    "underfilled": false,
+    "viaLattning": [
+      "le-grand-massif",
+      "evasion-mont-blanc",
+      "chamonix"
+    ]
+  }
+}

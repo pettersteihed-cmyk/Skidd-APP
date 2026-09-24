@@ -1,0 +1,31 @@
+{
+  "beskrivning": "Expert (nivå 5) med glaciär. Bara två orter har glaciar=true och nivå 5, så glaciarakning tas bort; de två som klarade originalfiltret rankas ändå först, sedan bästa lättade orten.",
+  "filter": {
+    "offpistNivaMin": 5,
+    "glaciarakning": true
+  },
+  "weights": {
+    "offpist": 1,
+    "pistKm": 1,
+    "transfer": 1,
+    "pris": 0
+  },
+  "expect": {
+    "top3": [
+      "les-deux-alpes",
+      "tignes-val-disere",
+      "les-3-vallees"
+    ],
+    "relaxed": [
+      {
+        "filter": "glaciarakning",
+        "from": true,
+        "to": null
+      }
+    ],
+    "underfilled": false,
+    "viaLattning": [
+      "les-3-vallees"
+    ]
+  }
+}

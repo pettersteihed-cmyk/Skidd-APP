@@ -1,0 +1,26 @@
+{
+  "beskrivning": "Tåg och max 90 min transfer. Bara Chamonix klarar båda och rankas först; tagResa lättas aldrig, så transfertiden höjs i steg om 30 min tills tre orter finns.",
+  "filter": {
+    "tagResa": true,
+    "maxTransferMin": 90
+  },
+  "expect": {
+    "top3": [
+      "chamonix",
+      "serre-chevalier",
+      "paradiski"
+    ],
+    "relaxed": [
+      {
+        "filter": "maxTransferMin",
+        "from": 90,
+        "to": 150
+      }
+    ],
+    "underfilled": false,
+    "viaLattning": [
+      "serre-chevalier",
+      "paradiski"
+    ]
+  }
+}

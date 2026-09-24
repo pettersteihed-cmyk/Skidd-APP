@@ -1,0 +1,23 @@
+{
+  "beskrivning": "Nybörjare (högst nivå 2), max 100 min transfer, offpist viktat högst. Sex orter klarar filtret, ingen lättning. Orter vars spann når långt över nivå 2 får avdrag, så espace-diamant (2–3) går före 2–4-orterna och val-cenis (2–5) faller ur topp tre.",
+  "filter": {
+    "offpistNivaMax": 2,
+    "maxTransferMin": 100
+  },
+  "weights": {
+    "offpist": 2,
+    "transfer": 1,
+    "pistKm": 0.5,
+    "pris": 1
+  },
+  "expect": {
+    "top3": [
+      "espace-diamant",
+      "le-grand-massif",
+      "via-lattea"
+    ],
+    "relaxed": [],
+    "underfilled": false,
+    "viaLattning": []
+  }
+}

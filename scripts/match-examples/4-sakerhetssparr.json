@@ -1,0 +1,20 @@
+{
+  "beskrivning": "Nybörjare (högst nivå 2) som vill åka tåg. Av tågorterna har bara Paradiski och Serre Chevalier nivå 2; varken offpistNivaMax eller tagResa får lättas, så resultatet blir två orter.",
+  "filter": {
+    "offpistNivaMax": 2,
+    "tagResa": true
+  },
+  "expect": {
+    "top3": [
+      "serre-chevalier",
+      "paradiski"
+    ],
+    "relaxed": [],
+    "underfilled": true,
+    "blockedBy": [
+      "offpistNivaMax",
+      "tagResa"
+    ],
+    "viaLattning": []
+  }
+}
