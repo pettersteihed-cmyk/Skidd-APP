@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import type { Resort } from '@/types';
 import MountainProfile from './MountainProfile';
+import WeatherForecast from './WeatherForecast';
 import { SNOW_HISTORY } from '@/data/snowHistory';
 import { airportsByTransfer } from '@/utils/transfer';
 
@@ -339,6 +340,9 @@ export default function ResortModal({ resort, onClose }: ResortModalProps) {
                           <div className="mt-0.5 text-sm font-bold text-slate-800">{t.value}</div>
                         </div>
                       ))}
+                    </div>
+                    <div className="mt-3">
+                      <WeatherForecast lat={resort.lat} lng={resort.lng} />
                     </div>
                   </div>
 
