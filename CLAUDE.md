@@ -1,5 +1,41 @@
 # Skidd-APP — projektkontext för Claude Code
 
+## HUR VI JOBBAR — läs detta först
+
+1. **PLAN FÖRE BYGGE.** Förklara alltid tillvägagångssätt och vänta på
+   godkännande innan något körs som rör flera filer, laddar upp data eller
+   ändrar en etablerad design.
+2. **VERIFIERA, LITA INTE PÅ ÖGONMÅTT.** När något ska stämma mot ett facit:
+   gör riktig pixel-diff eller checksum-jämförelse. En bild som ser rätt ut
+   kan dölja fel, och en som ser fel ut kan vara en cache-artefakt.
+3. **VAR EXAKT MED GRÄNSER OCH TRÖSKLAR.** Om en instruktion kan tolkas på
+   mer än ett sätt: fråga innan du bygger, bekräfta tolkningen explicit,
+   gissa inte.
+4. **EN VARIABEL I TAGET.** Blanda inte flera samtidiga ändringar. Testa och
+   lås en sak innan nästa.
+5. **FELSÖK METODISKT, BÖRJA MED DET ENKLASTE.** Uteslut cache, gammal
+   webbläsarflik och fel testdata innan komplexa buggar misstänks. Flera
+   "olösliga" buggar har varit en flik som levt för länge - lösningen är att
+   stänga webbläsaren helt.
+6. **LÅS DESIGNBESLUT INNAN BATCH-KÖRNING.** Lås färgskala och parametrar en
+   gång innan en pipeline körs för alla orter.
+7. **SÄKERHETSKRITISKA LAGER (branthet, sol/skugga):** appen riktar sig till
+   offpiståkare. Prioritera saklig korrekthet över estetik. Flagga
+   avvägningen om en ändring gör en gräns svårare att läsa av exakt.
+8. **HEMLIGHETER** (API-nycklar, tokens) klistras aldrig in i chatten, bara
+   direkt i terminalen. Skapa engångsnycklar med begränsad räckvidd och
+   återkalla dem efteråt.
+9. **COMMITTA VID SÄKRA CHECKPOINTS,** inte mitt i en osäker utredning.
+10. **GDAL OCH PYTHON BLOCKERAS** av Windows Smart App Control när det är
+    påslaget. All geodata-pipeline ska vara ren Python (rasterio, numpy,
+    scipy, PIL, whitebox). Smart App Control stängs av manuellt före
+    pipelinekörningar och slås på igen efteråt.
+11. **VERIFIERA ATT EN KÖRNING FAKTISKT KÖRDES.** Orimligt kort byggtid
+    betyder oftast att cachad data återanvänts. Jämför alltid mot förväntad
+    tid.
+
+---
+
 ## Vad är det här för projekt?
 En interaktiv karta över 15 franska/italienska skidorter (`src/data/resorts.ts`,
 Excel-synkat — ändra inte utan att också uppdatera Excel-källan). Utöver
