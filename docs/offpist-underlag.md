@@ -43,6 +43,10 @@ Skalan anger hur **krävande** terrängen är — inte hur mycket offpist som fi
 Orten graderas som ett spann: `offpistNivaMin` är den lugnaste meningsfulla
 offpistterrängen på orten, `offpistNivaMax` den mest krävande.
 
+**Regel:** `offpistNivaMax` räknar in all terräng som nås från orten, även
+turåkning, heliskiing och guidad glaciäråkning. `offpistNivaMin` är den
+lugnaste meningsfulla offpistterrängen, aldrig 1 om orten har offpist alls.
+
 | Steg | Betydelse |
 |---|---|
 | 1 | I princip bara preparerad pist |
