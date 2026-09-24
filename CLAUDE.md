@@ -47,6 +47,11 @@ Mapbox i `src/components/MapView.tsx`:
 - **Sol/skugga-lager (time-distance)** — binär sol/skugga-status per timme
 - **Sol/skugga tidsavstånd** — bygger på samma pipeline, sekundär vy
 
+Offpistfälten i `resorts.ts` (`offpistNivaMin`/`offpistNivaMax`,
+`offpistTillgang`, `glaciarakning`, `guideverksamhet`, `offpistNote`) synkas
+från `docs/offpist-underlag.xlsx`, inte från `skidorter_data 3.xlsx`. Ändra i
+Excel-filen först, för sedan över till `resorts.ts`.
+
 Vilka orter som har tiles klara styrs av `SLOPE_LAYER_RESORT_IDS` och
 `SUN_SHADOW_LAYER_RESORT_IDS` i `src/data/terrainLayers.ts` — uppdatera
 manuellt när en ny ort får tiles uppladdade.
@@ -131,8 +136,9 @@ Bbox per ny ort = union(branthetslagrets bbox, OSM aerialway-utbredning +
   Behövs vid lagerknapparna, i AI-chatten och som egna villkor.
 - **Offpistdatan i `docs/offpist-underlag.xlsx`** (nivåspann, ja/nej-fält och
   offpistNote för alla 15 orter) har ingen verifierad källa - kolumnen kalla
-  på Anteckningar-bladet är tom. Texterna bör granskas mot ortens egen
-  information eller en guidebyrå innan de används i produktion.
+  på Anteckningar-bladet är tom. Datan ligger i `resorts.ts` men används
+  inte i UI. Texterna måste granskas mot ortens egen information eller en
+  guidebyrå innan AI-chatten tas i bruk.
 
 ---
 
