@@ -18,14 +18,19 @@ Lämna en cell tom hellre än att gissa. Branthet och offpist är säkerhetskrit
 | `boendeTyper` | lista | kommaseparerat, ett eller flera av: `by`, `lagenhetsort`, `lyx`, `budget` | Vilka typer av boende orten erbjuder. |
 | `nyborjarvanlig` | heltal 1–5 | en siffra | Se skalan nedan. |
 
-### Värden i listfälten (tolkning av namnen — bekräfta)
+### Värden i `offpistTillgang` (fastställda)
+
+| Värde | Betydelse |
+|---|---|
+| `liftnara` | Åkning direkt från liften utan stigning |
+| `kort-stigning` | 15–45 min till fots eller med stighudar öppnar väsentligt mer terräng |
+| `turakning` | Meningsfull åkning kräver längre turer med utrustning |
+| `guide-kravs` | Glaciär eller terräng där lokal kunskap behövs för att åka ansvarsfullt |
+
+### Värden i `boendeTyper` (tolkning av namnen — bekräfta)
 
 | Värde | Tolkning |
 |---|---|
-| `liftnara` | Offpist som nås direkt från lift, utan stigning |
-| `kort-stigning` | Kräver en kortare stigning/traverse från lift |
-| `turakning` | Kräver turskidåkning (stighudar) |
-| `guide-kravs` | Terrängen bör/ska bara åkas med guide |
 | `by` | Traditionell by med hotell/chalets |
 | `lagenhetsort` | Planerad skidort byggd kring lägenhetskomplex |
 | `lyx` | Lyxboende finns i betydande utsträckning |
