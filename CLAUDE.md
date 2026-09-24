@@ -139,6 +139,10 @@ Bbox per ny ort = union(branthetslagrets bbox, OSM aerialway-utbredning +
   på Anteckningar-bladet är tom. Datan ligger i `resorts.ts` men används
   inte i UI. Texterna måste granskas mot ortens egen information eller en
   guidebyrå innan AI-chatten tas i bruk.
+- **Lättningen i resortMatch lättar en filtergrupp helt innan nästa tas**,
+  vilket kan ge större lättning än nödvändigt (t.ex. minPisteKm ned till 0
+  när 100 hade räckt). Rapporten är korrekt men mer pessimistisk än
+  nödvändigt.
 
 ---
 
