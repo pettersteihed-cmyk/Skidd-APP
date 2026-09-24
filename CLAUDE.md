@@ -125,6 +125,10 @@ Bbox per ny ort = union(branthetslagrets bbox, OSM aerialway-utbredning +
   besökare utan att ha faktagranskats. De innehåller påståenden om terräng
   och sevärdheter som inte finns i övrig data. Bör granskas eller skrivas om,
   särskilt terrängpåståenden.
+- **Ansvarsfriskrivning saknas.** Appen ger beslutsunderlag för terrängval i
+  lavinterräng (branthet, sol/skugga, offpistdata) utan text om att
+  informationen är vägledande och att åkaren själv ansvarar för sina val.
+  Behövs vid lagerknapparna, i AI-chatten och som egna villkor.
 
 ---
 
