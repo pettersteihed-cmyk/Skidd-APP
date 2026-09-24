@@ -12,6 +12,7 @@
     "snow:export": "node scripts/run-snow-export.mjs",
     "snow:append-resort": "node scripts/run-append-resort.mjs",
     "snow:generate-data": "node scripts/generateSnowHistoryData.mjs",
+    "match": "node scripts/run-resort-match.mjs",
     "licenses": "license-checker --summary"
   },
   "dependencies": {
