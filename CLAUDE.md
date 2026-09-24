@@ -121,6 +121,10 @@ Bbox per ny ort = union(branthetslagrets bbox, OSM aerialway-utbredning +
   (Italien/Frankrike).** `country` är en enda sträng och anger basorten. En
   `countries`-lista vore mer korrekt men kräver ändring i filter, UI och
   Excel-källan.
+- **Alla 15 description-texter är AI-genererade (63ef9db)** och visas för
+  besökare utan att ha faktagranskats. De innehåller påståenden om terräng
+  och sevärdheter som inte finns i övrig data. Bör granskas eller skrivas om,
+  särskilt terrängpåståenden.
 
 ---
 
