@@ -117,6 +117,10 @@ Bbox per ny ort = union(branthetslagrets bbox, OSM aerialway-utbredning +
 - **Backup av föregående tiles:** `alpe-dhuez` och `espace-san-bernardo`
   byggdes om 2026-09-22 med buffert-/masterraster-fixarna. De tidigare
   tiles ligger kvar i `time-distance-tiles-backup-2026-09-22/<ort>/` i R2.
+- **via-lattea och espace-san-bernardo är gränsöverskridande system
+  (Italien/Frankrike).** `country` är en enda sträng och anger basorten. En
+  `countries`-lista vore mer korrekt men kräver ändring i filter, UI och
+  Excel-källan.
 
 ---
 
