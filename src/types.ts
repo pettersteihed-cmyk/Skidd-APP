@@ -42,9 +42,8 @@ export interface Resort {
     equipmentRental?: string;
   };
   /**
-   * Löptext till "Om orten" i expanderad ortmodal (3-5 meningar). Just nu ifylld med
-   * platshållartext härledd ur övrig data (region, höjd, prisnivå, ski-in/out) tills riktiga
-   * redaktionella texter finns.
+   * Löptext till "Om orten" i expanderad ortmodal (3-5 meningar). AI-genererad platshållartext
+   * (commit 63ef9db), innehåller okontrollerade påståenden utöver övrig data.
    */
   description?: string;
   /**
