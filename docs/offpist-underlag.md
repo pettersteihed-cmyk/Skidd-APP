@@ -10,7 +10,8 @@ Lämna en cell tom hellre än att gissa. Branthet och offpist är säkerhetskrit
 
 | Fält | Typ | Format i tabellen | Betydelse |
 |---|---|---|---|
-| `offpistNiva` | heltal 1–5 | en siffra | Hur **krävande** terrängen är — inte hur mycket offpist som finns. Se skalan nedan. |
+| `offpistNivaMin` | heltal 1–5 | en siffra | Den lugnaste meningsfulla offpistterrängen på orten. Se skalan nedan. |
+| `offpistNivaMax` | heltal 1–5 | en siffra | Den mest krävande offpistterrängen på orten. Se skalan nedan. |
 | `offpistTillgang` | lista | kommaseparerat, ett eller flera av: `liftnara`, `kort-stigning`, `turakning`, `guide-kravs` | Hur offpistterrängen nås. |
 | `glaciarakning` | ja/nej | `ja` / `nej` | Det finns en skidbar glaciär inom pistsystemet som man åker på egen hand. Guidade glaciärturer utanför pist räknas inte här — de hör till `offpistTillgang` `guide-kravs` och beskrivs i `offpistNote`. |
 | `guideverksamhet` | ja/nej | `ja` / `nej` | Om det finns guider/guidebyrå att boka på orten. |
@@ -36,7 +37,11 @@ Lämna en cell tom hellre än att gissa. Branthet och offpist är säkerhetskrit
 | `lyx` | Lyxboende finns i betydande utsträckning |
 | `budget` | Budgetboende finns i betydande utsträckning |
 
-### Skala `offpistNiva` (fastställd)
+### Skala `offpistNivaMin` / `offpistNivaMax` (fastställd)
+
+Skalan anger hur **krävande** terrängen är — inte hur mycket offpist som finns.
+Orten graderas som ett spann: `offpistNivaMin` är den lugnaste meningsfulla
+offpistterrängen på orten, `offpistNivaMax` den mest krävande.
 
 | Steg | Betydelse |
 |---|---|
@@ -61,20 +66,20 @@ sätts, så att alla orter graderas mot samma skala.
 
 ## Ifyllnadstabell
 
-| id | Ort | offpistNiva | offpistTillgang | glaciarakning | guideverksamhet | offpistNote | boendeTyper | nyborjarvanlig |
-|---|---|---|---|---|---|---|---|---|
-| les-3-vallees | Les 3 Vallées (Val Thorens, Courchevel) | | | | | | | |
-| paradiski | Paradiski (Les Arcs, La Plagne) | | | | | | | |
-| tignes-val-disere | Tignes - Val d'Isère | | | | | | | |
-| portes-du-soleil | Portes du Soleil (Avoriaz, Morzine) | | | | | | | |
-| le-grand-massif | Le Grand Massif (Flaine, Samoëns) | | | | | | | |
-| les-sybelles | Les Sybelles (Le Corbier) | | | | | | | |
-| alpe-dhuez | Alpe d'Huez Grand Domaine | | | | | | | |
-| les-deux-alpes | Les Deux Alpes | | | | | | | |
-| serre-chevalier | Serre Chevalier (Briançon) | | | | | | | |
-| evasion-mont-blanc | Évasion Mont-Blanc (Megève) | | | | | | | |
-| chamonix | Chamonix-Mont-Blanc | | | | | | | |
-| via-lattea | Via Lattea (Montgenèvre) | | | | | | | |
-| espace-san-bernardo | Espace San Bernardo (La Rosière) | | | | | | | |
-| espace-diamant | Espace Diamant (Les Saisies) | | | | | | | |
-| val-cenis | Val Cenis | | | | | | | |
+| id | Ort | offpistNivaMin | offpistNivaMax | offpistTillgang | glaciarakning | guideverksamhet | offpistNote | boendeTyper | nyborjarvanlig |
+|---|---|---|---|---|---|---|---|---|---|
+| les-3-vallees | Les 3 Vallées (Val Thorens, Courchevel) | | | | | | | | |
+| paradiski | Paradiski (Les Arcs, La Plagne) | | | | | | | | |
+| tignes-val-disere | Tignes - Val d'Isère | | | | | | | | |
+| portes-du-soleil | Portes du Soleil (Avoriaz, Morzine) | | | | | | | | |
+| le-grand-massif | Le Grand Massif (Flaine, Samoëns) | | | | | | | | |
+| les-sybelles | Les Sybelles (Le Corbier) | | | | | | | | |
+| alpe-dhuez | Alpe d'Huez Grand Domaine | | | | | | | | |
+| les-deux-alpes | Les Deux Alpes | | | | | | | | |
+| serre-chevalier | Serre Chevalier (Briançon) | | | | | | | | |
+| evasion-mont-blanc | Évasion Mont-Blanc (Megève) | | | | | | | | |
+| chamonix | Chamonix-Mont-Blanc | | | | | | | | |
+| via-lattea | Via Lattea (Montgenèvre) | | | | | | | | |
+| espace-san-bernardo | Espace San Bernardo (La Rosière) | | | | | | | | |
+| espace-diamant | Espace Diamant (Les Saisies) | | | | | | | | |
+| val-cenis | Val Cenis | | | | | | | | |

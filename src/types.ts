@@ -72,7 +72,8 @@ export interface Resort {
   pisteMapPdfUrl?: string;
   // Fält inför AI-chatten — valfria tills de är ifyllda för orterna.
   offpistTillgang?: OffpistTillgang[];
-  offpistNiva?: Betyg1Till5;
+  offpistNivaMin?: Betyg1Till5;
+  offpistNivaMax?: Betyg1Till5;
   offpistNote?: string;
   glaciarakning?: boolean;
   guideverksamhet?: boolean;
