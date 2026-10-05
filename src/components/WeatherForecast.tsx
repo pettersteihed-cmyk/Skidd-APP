@@ -5,11 +5,26 @@ interface WeatherForecastProps {
   lng: number;
 }
 
+interface DailyTempByTime {
+  night?: number;
+  morn?: number;
+  day?: number;
+  eve?: number;
+}
+
 interface DailyForecast {
   date: string;
   tempMin: number;
   tempMax: number;
+  temp?: DailyTempByTime;
+  feelsLike?: DailyTempByTime;
   icon: string;
+  windSpeed?: number;
+  windDeg?: number;
+  windGust?: number;
+  snowCm?: number;
+  sunrise?: string;
+  sunset?: string;
 }
 
 interface WeatherData {
@@ -117,7 +132,32 @@ function WeatherIcon({ code, className = '' }: { code: string; className?: strin
   }
 }
 
+// Pil som visar vart vinden blåser (inte varifrån — OpenWeathers wind_deg är meteorologisk,
+// dvs. anger varifrån vinden kommer, så pilen roteras 180° extra för att peka i flödesriktningen,
+// samma konvention som SMHI/Yr använder för sina vindpilar).
+function WindArrow({ deg, className = '' }: { deg: number; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      style={{ transform: `rotate(${(deg + 180) % 360}deg)` }}
+      aria-hidden="true"
+    >
+      <g fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20V4" />
+        <path d="M6.5 9.5L12 4l5.5 5.5" />
+      </g>
+    </svg>
+  );
+}
+
 const WEEKDAY_LABELS = ['sön', 'mån', 'tis', 'ons', 'tors', 'fre', 'lör'];
+const TIME_LABELS: { key: keyof DailyTempByTime; label: string }[] = [
+  { key: 'night', label: 'Natt' },
+  { key: 'morn', label: 'Morgon' },
+  { key: 'day', label: 'Dag' },
+  { key: 'eve', label: 'Kväll' },
+];
 
 function dayLabel(dateStr: string, index: number): string {
   if (index === 0) return 'Idag';
@@ -128,11 +168,13 @@ function dayLabel(dateStr: string, index: number): string {
 export default function WeatherForecast({ lat, lng }: WeatherForecastProps) {
   const [data, setData] = useState<WeatherData | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     setStatus('loading');
     setData(null);
+    setExpandedDate(null);
 
     fetch(`/.netlify/functions/weather?lat=${lat}&lon=${lng}`, { signal: controller.signal })
       .then((res) => {
@@ -178,21 +220,78 @@ export default function WeatherForecast({ lat, lng }: WeatherForecastProps) {
             <span className="text-lg font-bold text-slate-800">{data.current.temp}°</span>
           </div>
 
-          {/* 5-dagarsprognos — en rad med fem kompakta kort, bara ikon + max/min-temp. */}
+          {/* 5-dagarsprognos — kompakt kort per dag (ikon, vind, snöfall, soltider). Klick på ett
+              kort expanderar det till en Natt/Morgon/Dag/Kväll-uppdelning av temp/känns-som —
+              hålls bakom klick istället för att visas för alla fem samtidigt, annars blir fem
+              kort × fyra underkolumner för trångt i modalens 65%-kolumn. Gammal cachad data (eller
+              ett äldre svar) kan sakna de nya fälten helt — varje fält renderas bakom en egen
+              `!== undefined`-kontroll så den utelämnas istället för att visa tomt/NaN. */}
           <div className="grid grid-cols-5 gap-2">
-            {data.daily.slice(0, 5).map((day, i) => (
-              <div
-                key={day.date}
-                className="flex flex-col items-center gap-1 rounded-xl border border-slate-100 bg-slate-50/60 px-1 py-2"
-              >
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  {dayLabel(day.date, i)}
-                </span>
-                <WeatherIcon code={day.icon} className="h-5 w-5 text-slate-500" />
-                <span className="text-xs font-bold text-slate-800">{day.tempMax}°</span>
-                <span className="text-xs text-slate-400">{day.tempMin}°</span>
-              </div>
-            ))}
+            {data.daily.slice(0, 5).map((day, i) => {
+              const isExpanded = expandedDate === day.date;
+              const hasWind = day.windSpeed !== undefined;
+              const hasSnow = (day.snowCm ?? 0) > 0;
+              const hasSunTimes = day.sunrise !== undefined && day.sunset !== undefined;
+              const hasBreakdown = day.temp !== undefined || day.feelsLike !== undefined;
+
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => hasBreakdown && setExpandedDate(isExpanded ? null : day.date)}
+                  className={`flex flex-col items-center gap-1 rounded-xl border border-slate-100 bg-slate-50/60 px-1 py-2 text-left ${
+                    hasBreakdown ? 'cursor-pointer transition hover:bg-slate-100/80' : 'cursor-default'
+                  } ${isExpanded ? 'col-span-5' : ''}`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {dayLabel(day.date, i)}
+                  </span>
+                  <WeatherIcon code={day.icon} className="h-5 w-5 text-slate-500" />
+                  <span className="text-xs font-bold text-slate-800">{day.tempMax}°</span>
+                  <span className="text-xs text-slate-400">{day.tempMin}°</span>
+
+                  {hasWind && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
+                      {day.windDeg !== undefined && <WindArrow deg={day.windDeg} className="h-2.5 w-2.5" />}
+                      {day.windSpeed} m/s
+                      {day.windGust !== undefined && `, byar ${day.windGust}`}
+                    </span>
+                  )}
+
+                  {hasSnow && (
+                    <span className="text-[10px] text-slate-400">ca {day.snowCm} cm</span>
+                  )}
+
+                  {hasSunTimes && (
+                    <span className="text-[10px] text-slate-400">
+                      {day.sunrise}–{day.sunset}
+                    </span>
+                  )}
+
+                  {isExpanded && hasBreakdown && (
+                    <div className="mt-2 grid w-full grid-cols-4 gap-2 border-t border-slate-200 pt-2">
+                      {TIME_LABELS.map(({ key, label }) => {
+                        const tempValue = day.temp?.[key];
+                        if (tempValue === undefined) return null;
+                        const feelsValue = day.feelsLike?.[key];
+
+                        return (
+                          <div key={key} className="flex flex-col items-center gap-0.5">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                              {label}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800">{tempValue}°</span>
+                            {feelsValue !== undefined && (
+                              <span className="text-[10px] text-slate-400">känns {feelsValue}°</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </>
       )}
